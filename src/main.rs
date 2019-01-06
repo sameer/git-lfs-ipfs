@@ -10,6 +10,7 @@ extern crate serde_json;
 extern crate lazy_static;
 extern crate url;
 extern crate url_serde;
+#[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
