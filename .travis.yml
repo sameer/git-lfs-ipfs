@@ -7,7 +7,7 @@ script:
   - ./test/build_kcov.sh
   - cargo build
   - rm -f ./target/debug/git_lfs_ipfs*
-  - RUSTFLAGS="-C link-dead-code" cargo test --no-run
+  - cargo test --no-run
   - kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo --exclude-path=/usr target/cov `find target/debug/ -maxdepth 1 -executable -type f -name "git_lfs_ipfs*"`
 cache:
   cargo: true
