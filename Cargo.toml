@@ -1,0 +1,17 @@
+[package]
+name = "git-lfs-ipfs"
+version = "0.1.0"
+authors = ["Sameer Puri <purisame@spuri.io>"]
+edition = "2018"
+
+[dependencies]
+ipfs-api = "0.5.0-alpha2"
+rocket = "0.4"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+lazy_static = "1.2"
+regex = "1.1"
+url = "1.7"
+url_serde = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
