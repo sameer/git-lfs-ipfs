@@ -1,0 +1,19 @@
+{
+  "transfer": "basic",
+  "objects": [
+    {
+      "oid": "1111111",
+      "size": 123,
+      "authenticated": true,
+      "actions": {
+        "download": {
+          "href": "https://some-download.com/",
+          "header": {
+            "Key": "value"
+          },
+          "expires_at": "2016-11-10T15:29:07+00:00"
+        }
+      }
+    }
+  ]
+}

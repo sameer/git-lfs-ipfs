@@ -1,0 +1,13 @@
+{
+  "transfer": "basic",
+  "objects": [
+    {
+      "oid": "1111111",
+      "size": 123,
+      "error": {
+        "code": 404,
+        "message": "Object does not exist"
+      }
+    }
+  ]
+}

@@ -1,10 +1,10 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, FixedOffset};
 use rocket::http::Status;
 use url::Url;
 
 use std::collections::HashMap;
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct BatchRequest {
     operation: Operation,
     #[serde(default = vec![Transfer::Basic])]
@@ -14,8 +14,9 @@ pub struct BatchRequest {
     objects: Vec<Object>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct BatchResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
     transfer: Option<Transfer>,
     objects: Vec<ObjectResponse>,
 }
@@ -34,7 +35,7 @@ pub enum Transfer {
     Custom,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct Ref {
     name: String,
 }
@@ -45,65 +46,75 @@ pub struct Object {
     size: u64,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct ObjectResponse {
     #[serde(flatten)]
     object: Object,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<ObjectError>,
-    #[serde(flatten)]
-    response: Option<ObjectSuccess>,
-}
-
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct ObjectSuccess {
+    #[serde(skip_serializing_if = "Option::is_none")]
     authenticated: Option<bool>,
-    #[serde(flatten)]
-    action: Actions,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    actions: Option<Actions>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
+pub struct ObjectSuccess {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    authenticated: Option<bool>,
+    actions: Actions,
+}
+
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct ObjectError {
-    code: ObjectErrorCode,
-    messange: String,
+    code: u16,
+    message: &'static str,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
-enum ObjectErrorCode {
-    DoesNotExist = Status::NotFound.code as isize,
-    RemovedByOwner = Status::Gone.code as isize,
-    ValidationEror = Status::UnprocessableEntity.code as isize,
+impl ObjectError {
+    const DOES_NOT_EXIST: ObjectError = ObjectError {
+        code: Status::NotFound.code,
+        message: "Object does not exist",
+    };
+    const REMOVED_BY_OWNER: ObjectError = ObjectError {
+        code: Status::Gone.code,
+        message: "Object removed by owner",
+    };
+    const VALIDATION_ERROR: ObjectError = ObjectError {
+        code: Status::UnprocessableEntity.code,
+        message: "Validation error",
+    };
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Actions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     download: Option<Download>,
-    #[serde(flatten)]
-    upload: Option<UploadAction>,
-}
-
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct UploadAction {
-    upload: Upload,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upload: Option<Upload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     verify: Option<Verify>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Download {
     #[serde(with = "url_serde")]
     href: Url,
     header: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     expires_in: Option<i32>,
-    expires_at: Option<DateTime<Local>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at: Option<DateTime<FixedOffset>>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Upload {}
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Verify {}
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct LfsError {
+#[derive(PartialEq, Eq, Debug, Serialize)]
+pub struct LfsErrorResponse {
     message: String,
     #[serde(with = "url_serde")]
     documentation_url: Option<Url>,
@@ -116,22 +127,69 @@ pub fn transfer(user: String, repo: String) {}
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
-    fn error_serializes_correctly() {
+    fn batch_response_serializes_correctly() {
         assert_eq!(
-            serde_json::from_str::<LfsError>(
-                r#"{
-                "message": "Not found",
-                "documentation_url": "https://lfs-server.com/docs/errors",
-                "request_id": "123"
-            }"#
-            )
+            include_str!("test/batch_response_success.json"),
+            serde_json::to_string_pretty(&BatchResponse {
+                transfer: Some(Transfer::Basic),
+                objects: vec![ObjectResponse {
+                    error: None,
+                    object: Object {
+                        oid: "1111111".to_string(),
+                        size: 123,
+                    },
+                    authenticated: Some(true),
+                    actions: Some(Actions {
+                        download: Download {
+                            href: Url::parse("https://some-download.com").unwrap(),
+                            header: [("Key", "value")]
+                                .iter()
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect(),
+                            expires_in: None,
+                            expires_at: Some(
+                                DateTime::parse_from_rfc3339("2016-11-10T15:29:07Z").unwrap()
+                            )
+                        }
+                        .into(),
+                        upload: None,
+                        verify: None,
+                    }),
+                }],
+            })
             .unwrap(),
-            LfsError {
+        );
+
+        assert_eq!(
+            include_str!("test/batch_response_error.json"),
+            serde_json::to_string_pretty(&BatchResponse {
+                transfer: Some(Transfer::Basic),
+                objects: vec![ObjectResponse {
+                    error: Some(ObjectError::DOES_NOT_EXIST),
+                    object: Object {
+                        oid: "1111111".to_string(),
+                        size: 123,
+                    },
+                    authenticated: None,
+                    actions: None,
+                }],
+            })
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn lfs_error_serializes_correctly() {
+        assert_eq!(
+            include_str!("test/lfs_error.json"),
+            serde_json::to_string_pretty(&LfsErrorResponse {
                 message: "Not found".to_string(),
                 documentation_url: Some(Url::parse("https://lfs-server.com/docs/errors").unwrap()),
                 request_id: Some("123".to_string())
-            },
+            })
+            .unwrap(),
         );
     }
 
