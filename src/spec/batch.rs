@@ -10,7 +10,7 @@ pub struct BatchRequest {
     #[serde(default = vec![Transfer::Basic])]
     transfer: Vec<Transfer>,
     #[serde(rename = "ref")]
-    _ref: Option<Ref>,
+    ref_property: Option<Ref>,
     objects: Vec<Object>,
 }
 
@@ -42,8 +42,8 @@ pub struct Ref {
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct Object {
-    oid: String,
-    size: u64,
+    pub oid: String,
+    pub size: u64,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -89,15 +89,15 @@ impl ObjectError {
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Actions {
     #[serde(skip_serializing_if = "Option::is_none")]
-    download: Option<Download>,
+    download: Option<Action>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    upload: Option<Upload>,
+    upload: Option<Action>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    verify: Option<Verify>,
+    verify: Option<Action>,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
-pub struct Download {
+pub struct Action {
     #[serde(with = "url_serde")]
     href: Url,
     header: HashMap<String, String>,
@@ -107,11 +107,11 @@ pub struct Download {
     expires_at: Option<DateTime<FixedOffset>>,
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize)]
-pub struct Upload {}
-
-#[derive(PartialEq, Eq, Debug, Serialize)]
-pub struct Verify {}
+#[derive(PartialEq, Eq, Debug, Deserialize)]
+pub struct VerifyRequest {
+    #[serde(flatten)]
+    object: Object,
+}
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct LfsErrorResponse {
@@ -179,22 +179,23 @@ mod test {
                         size: 123,
                     },
                     authenticated: Some(true),
-                    actions: Some(Actions {
-                        download: Download {
+                    actions: Actions {
+                        download: Action {
                             href: Url::parse("https://some-download.com").unwrap(),
                             header: [("Key", "value")]
                                 .iter()
                                 .map(|(k, v)| (k.to_string(), v.to_string()))
                                 .collect(),
                             expires_in: None,
-                            expires_at: Some(
-                                DateTime::parse_from_rfc3339("2016-11-10T15:29:07Z").unwrap()
-                            )
+                            expires_at: DateTime::parse_from_rfc3339("2016-11-10T15:29:07Z")
+                                .unwrap()
+                                .into()
                         }
                         .into(),
                         upload: None,
                         verify: None,
-                    }),
+                    }
+                    .into(),
                 }],
             })
             .unwrap(),
@@ -224,7 +225,9 @@ mod test {
             include_str!("test/lfs_error.json"),
             serde_json::to_string_pretty(&LfsErrorResponse {
                 message: "Not found",
-                documentation_url: Some(Url::parse("https://lfs-server.com/docs/errors").unwrap()),
+                documentation_url: Url::parse("https://lfs-server.com/docs/errors")
+                    .unwrap()
+                    .into(),
                 request_id: Some("123".to_string()),
                 status: Status::NotFound
             })

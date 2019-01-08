@@ -1,6 +1,6 @@
+use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use lazy_static::lazy_static;
 
 use std::fmt;
 
