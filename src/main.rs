@@ -24,6 +24,7 @@ extern crate url_serde;
 #[macro_use]
 extern crate pretty_assertions;
 
+mod batch;
 mod spec;
 mod transfer;
 
@@ -36,6 +37,7 @@ fn main() {
                 transfer::basic::verify_object,
                 transfer::basic::download_object,
                 transfer::basic::upload_object,
+                batch::endpoint,
             ],
         )
         .launch();

@@ -1,17 +1,18 @@
 use chrono::{DateTime, FixedOffset};
 use rocket::http::Status;
+use std::collections::HashMap;
 use url::Url;
 
-use std::collections::HashMap;
+use crate::spec::Object;
 
 #[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct BatchRequest {
-    operation: Operation,
+    pub operation: Operation,
     #[serde(default = vec![Transfer::Basic])]
-    transfer: Vec<Transfer>,
+    pub transfer: Vec<Transfer>,
     #[serde(rename = "ref")]
-    ref_property: Option<Ref>,
-    objects: Vec<Object>,
+    pub ref_property: Option<Ref>,
+    pub objects: Vec<Object>,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -37,13 +38,7 @@ pub enum Transfer {
 
 #[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct Ref {
-    name: String,
-}
-
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct Object {
-    pub oid: String,
-    pub size: u64,
+    pub name: String,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -72,15 +67,15 @@ pub struct ObjectError {
 }
 
 impl ObjectError {
-    const DOES_NOT_EXIST: Self = Self {
+    pub const DOES_NOT_EXIST: Self = Self {
         code: Status::NotFound.code,
         message: "Object does not exist",
     };
-    const REMOVED_BY_OWNER: Self = Self {
+    pub const REMOVED_BY_OWNER: Self = Self {
         code: Status::Gone.code,
         message: "Object removed by owner",
     };
-    const VALIDATION_ERROR: Self = Self {
+    pub const VALIDATION_ERROR: Self = Self {
         code: Status::UnprocessableEntity.code,
         message: "Validation error",
     };
@@ -105,12 +100,6 @@ pub struct Action {
     expires_in: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_at: Option<DateTime<FixedOffset>>,
-}
-
-#[derive(PartialEq, Eq, Debug, Deserialize)]
-pub struct VerifyRequest {
-    #[serde(flatten)]
-    object: Object,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]

@@ -5,7 +5,8 @@ use rocket::{http::Status, Data};
 use rocket_contrib::json::Json;
 use rust_base58::ToBase58;
 
-use super::super::spec::batch::Object;
+use crate::spec::transfer::basic::VerifyRequest;
+use crate::spec::Object;
 
 #[put("/upload/<oid>", format = "binary", data = "<data>")]
 pub fn upload_object(oid: String, data: Data) -> Result<(), Status> {
@@ -38,10 +39,12 @@ pub fn download_object(oid: String) -> Result<Stream<reqwest::Response>, Status>
         })
 }
 
-#[post("/verify", format = "application/vnd.git-lfs+json", data = "<object>")]
-pub fn verify_object(object: Json<Object>) -> Result<(), Status> {
-    let multihash = sha256_to_multihash(&object.oid)?;
+#[post("/verify", format = "application/vnd.git-lfs+json", data = "<request>")]
+pub fn verify_object(request: Json<VerifyRequest>) -> Result<(), Status> {
+    let multihash = sha256_to_multihash(&request.object.oid)?;
     let client = reqwest::Client::new();
+    // TODO: also verify size matches ls result,
+    // might occur if there's hash collision
     client
         .get("http://localhost:5001/api/v0/ls")
         .query(&[("arg", &format!("/ipfs/{}", multihash))])
