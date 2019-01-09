@@ -1,3 +1,5 @@
+use serde_derive::Deserialize;
+
 use crate::spec::Object;
 
 #[derive(PartialEq, Eq, Debug, Deserialize)]

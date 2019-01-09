@@ -1,5 +1,6 @@
+use actix_web::http::StatusCode;
 use chrono::{DateTime, FixedOffset};
-use rocket::http::Status;
+use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use url::Url;
 
@@ -8,7 +9,7 @@ use crate::spec::Object;
 #[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct BatchRequest {
     pub operation: Operation,
-    #[serde(default = vec![Transfer::Basic])]
+    #[serde(default = "Transfer::default_vec")]
     pub transfer: Vec<Transfer>,
     #[serde(rename = "ref")]
     pub ref_property: Option<Ref>,
@@ -34,6 +35,18 @@ pub enum Operation {
 pub enum Transfer {
     Basic,
     Custom,
+}
+
+impl Transfer {
+    fn default_vec() -> Vec<Self> {
+        vec![Transfer::Basic]
+    }
+}
+
+impl Default for Transfer {
+    fn default() -> Self {
+        Transfer::Basic
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Deserialize)]
@@ -88,15 +101,15 @@ pub struct ObjectError {
 
 impl ObjectError {
     pub const DOES_NOT_EXIST: Self = Self {
-        code: Status::NotFound.code,
+        code: StatusCode::NOT_FOUND.as_u16(),
         message: "Object does not exist",
     };
     pub const REMOVED_BY_OWNER: Self = Self {
-        code: Status::Gone.code,
+        code: StatusCode::GONE.as_u16(),
         message: "Object removed by owner",
     };
     pub const VALIDATION_ERROR: Self = Self {
-        code: Status::UnprocessableEntity.code,
+        code: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
         message: "Validation error",
     };
 }
@@ -167,7 +180,7 @@ pub struct LfsErrorResponse {
     documentation_url: Option<Url>,
     request_id: Option<String>,
     #[serde(skip)]
-    status: Status,
+    status: StatusCode,
 }
 
 impl LfsErrorResponse {
@@ -175,34 +188,31 @@ impl LfsErrorResponse {
         message: "The Accept header needs to be `application/vnd.git-lfs+json`.",
         documentation_url: None,
         request_id: None,
-        status: Status::NotAcceptable,
+        status: StatusCode::NOT_ACCEPTABLE,
     };
     const RATE_LIMIT_HIT: Self = Self {
         message: "A rate limit has been hit with the server.",
         documentation_url: None,
         request_id: None,
-        status: Status::TooManyRequests,
+        status: StatusCode::TOO_MANY_REQUESTS,
     };
     const NOT_IMPLEMENTED: Self = Self {
         message: "The server has not implemented the current method.",
         documentation_url: None,
         request_id: None,
-        status: Status::NotImplemented,
+        status: StatusCode::NOT_IMPLEMENTED,
     };
     const INSUFFICIENT_STORAGE: Self = Self {
         message: "The server has insufficient storage capacity to complete the request.",
         documentation_url: None,
         request_id: None,
-        status: Status::InsufficientStorage,
+        status: StatusCode::INSUFFICIENT_STORAGE,
     };
     const BANDWIDTH_LIMIT_EXCEEDED: Self = Self {
         message: "A bandwidth limit has been exceeded.",
         documentation_url: None,
         request_id: None,
-        status: Status {
-            code: 509,
-            reason: "Bandwith Limit Exceeded",
-        },
+        status: StatusCode::from_u16(509).unwrap(),
     };
 }
 
@@ -229,10 +239,12 @@ mod test {
                     actions: Actions {
                         download: Action {
                             href: Url::parse("https://some-download.com").unwrap(),
-                            header: Some([("Key", "value")]
-                                .iter()
-                                .map(|(k, v)| (k.to_string(), v.to_string()))
-                                .collect()),
+                            header: Some(
+                                [("Key", "value")]
+                                    .iter()
+                                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                                    .collect()
+                            ),
                             expires_in: None,
                             expires_at: DateTime::parse_from_rfc3339("2016-11-10T15:29:07Z")
                                 .unwrap()
@@ -276,7 +288,7 @@ mod test {
                     .unwrap()
                     .into(),
                 request_id: Some("123".to_string()),
-                status: Status::NotFound
+                status: StatusCode::NOT_FOUND
             })
             .unwrap(),
         );

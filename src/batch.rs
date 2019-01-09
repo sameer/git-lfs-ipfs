@@ -21,7 +21,7 @@ pub fn endpoint<'a>(request: Json<BatchRequest>, config: State<Config>) -> Rocke
     let base_url = Url::parse(&format!("http://{}:{}/", config.address, config.port)).unwrap();
     let download_url = base_url.join("download/").unwrap();
     let upload_url = base_url.join("upload/").unwrap();
-    let verify_url = base_url.join("verify/").unwrap();
+    let verify_url = base_url.join("verify").unwrap();
     if !request.transfer.contains(&Transfer::Basic) {
         return Err(Status::NotImplemented);
     }

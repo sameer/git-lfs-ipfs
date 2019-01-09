@@ -5,8 +5,8 @@ authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
-rocket = "0.4"
-rocket_contrib = "0.4"
+actix-web = { version = "0.7", default-features = false }
+actix = "0.7"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -17,9 +17,12 @@ url_serde = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
 multihash = "0.8"
 multiaddr = { git = "https://github.com/multiformats/rust-multiaddr/", version = "0.3.1" }
-reqwest = "0.9"
 rust-base58 = "0.0.4"
 base64 = "0.10"
+dirs = "1.0"
+futures = "0.1.25"
+failure = "0.1"
+mpart-async = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.5"

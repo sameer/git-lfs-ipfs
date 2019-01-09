@@ -1,3 +1,5 @@
+use serde_derive::{Deserialize, Serialize};
+
 pub mod batch;
 pub mod transfer;
 

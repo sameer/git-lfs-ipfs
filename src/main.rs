@@ -5,18 +5,17 @@
     unrestricted_attribute_tokens
 )]
 
-#[macro_use]
-extern crate rocket;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate base64;
+extern crate dirs;
+extern crate failure;
+extern crate futures;
 extern crate lazy_static;
+extern crate mpart_async;
 extern crate multiaddr;
 extern crate multihash;
-extern crate reqwest;
-extern crate rocket_contrib;
 extern crate rust_base58;
+extern crate serde;
+extern crate serde_derive;
 extern crate serde_json;
 extern crate url;
 extern crate url_serde;
@@ -25,29 +24,29 @@ extern crate url_serde;
 #[macro_use]
 extern crate pretty_assertions;
 
-use rocket::fairing::AdHoc;
+use actix_web::App;
 
 mod batch;
 mod spec;
 mod transfer;
 
 fn main() {
-    rocket::ignite()
-        .attach(AdHoc::on_attach("Config", |rocket| {
-            let config = rocket.config().clone();
-            Ok(rocket.manage(config))
-        }))
-        .mount(
-            "/",
-            routes![
-                lfs,
-                transfer::basic::verify_object,
-                transfer::basic::download_object,
-                transfer::basic::upload_object,
-                batch::endpoint,
-            ],
-        )
-        .launch();
+    actix_web::server::new(|| {
+        App::new()
+            .resource("/verify", |r| {
+                r.post().with_async(transfer::basic::verify_object)
+            })
+            .resource("/download/{oid}", |r| {
+                r.get().with_async(transfer::basic::download_object)
+            })
+            .resource("/upload/{oid}", |r| {
+                r.put().with_async(transfer::basic::upload_object)
+            })
+            .resource("/objects/batch", |r| r.post().with(batch::endpoint))
+    })
+    .bind("127.0.0.1:5002")
+    .unwrap()
+    .run();
 }
 
 #[get("/<user>/<repo>/info/lfs")]
