@@ -15,7 +15,8 @@ regex = "1.1"
 url = "1.7"
 url_serde = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
-multihash = "*"
+multihash = "0.8"
+multiaddr = { git = "https://github.com/multiformats/rust-multiaddr/", version = "0.3.1" }
 reqwest = "0.9"
 rust-base58 = "0.0.4"
 base64 = "0.10"

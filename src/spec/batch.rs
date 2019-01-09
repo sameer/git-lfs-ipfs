@@ -18,8 +18,8 @@ pub struct BatchRequest {
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct BatchResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
-    transfer: Option<Transfer>,
-    objects: Vec<ObjectResponse>,
+    pub transfer: Option<Transfer>,
+    pub objects: Vec<ObjectResponse>,
 }
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
@@ -51,6 +51,26 @@ pub struct ObjectResponse {
     authenticated: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     actions: Option<Actions>,
+}
+
+impl ObjectResponse {
+    pub fn success(object: Object, actions: Actions) -> Self {
+        Self {
+            object,
+            error: None,
+            authenticated: None,
+            actions: Some(actions),
+        }
+    }
+
+    pub fn error(object: Object, error: ObjectError) -> Self {
+        Self {
+            object,
+            error: Some(error),
+            authenticated: None,
+            actions: None,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -91,15 +111,53 @@ pub struct Actions {
     verify: Option<Action>,
 }
 
+impl Actions {
+    pub fn download(download: Action) -> Self {
+        Self {
+            download: Some(download),
+            upload: None,
+            verify: None,
+        }
+    }
+
+    pub fn upload_and_verify(upload: Action, verify: Action) -> Self {
+        Self {
+            download: None,
+            upload: Some(upload),
+            verify: Some(verify),
+        }
+    }
+
+    pub fn upload(upload: Action) -> Self {
+        Self {
+            download: None,
+            upload: Some(upload),
+            verify: None,
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Action {
     #[serde(with = "url_serde")]
     href: Url,
-    header: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    header: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_in: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_at: Option<DateTime<FixedOffset>>,
+}
+
+impl Action {
+    pub fn new(href: Url) -> Self {
+        Self {
+            href,
+            header: None,
+            expires_in: None,
+            expires_at: None,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -171,10 +229,10 @@ mod test {
                     actions: Actions {
                         download: Action {
                             href: Url::parse("https://some-download.com").unwrap(),
-                            header: [("Key", "value")]
+                            header: Some([("Key", "value")]
                                 .iter()
                                 .map(|(k, v)| (k.to_string(), v.to_string()))
-                                .collect(),
+                                .collect()),
                             expires_in: None,
                             expires_at: DateTime::parse_from_rfc3339("2016-11-10T15:29:07Z")
                                 .unwrap()

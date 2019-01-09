@@ -12,6 +12,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate base64;
 extern crate lazy_static;
+extern crate multiaddr;
 extern crate multihash;
 extern crate reqwest;
 extern crate rocket_contrib;
@@ -24,12 +25,18 @@ extern crate url_serde;
 #[macro_use]
 extern crate pretty_assertions;
 
+use rocket::fairing::AdHoc;
+
 mod batch;
 mod spec;
 mod transfer;
 
 fn main() {
     rocket::ignite()
+        .attach(AdHoc::on_attach("Config", |rocket| {
+            let config = rocket.config().clone();
+            Ok(rocket.manage(config))
+        }))
         .mount(
             "/",
             routes![
