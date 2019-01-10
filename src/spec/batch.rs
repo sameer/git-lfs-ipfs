@@ -100,18 +100,25 @@ pub struct ObjectError {
 }
 
 impl ObjectError {
-    pub const DOES_NOT_EXIST: Self = Self {
-        code: StatusCode::NOT_FOUND.as_u16(),
-        message: "Object does not exist",
-    };
-    pub const REMOVED_BY_OWNER: Self = Self {
-        code: StatusCode::GONE.as_u16(),
-        message: "Object removed by owner",
-    };
-    pub const VALIDATION_ERROR: Self = Self {
-        code: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
-        message: "Validation error",
-    };
+    pub fn DoesNotExist() -> Self {
+        Self {
+            code: StatusCode::NOT_FOUND.as_u16(),
+            message: "Object does not exist",
+        }
+    }
+
+    pub fn RemovedByOwner() -> Self {
+        Self {
+            code: StatusCode::GONE.as_u16(),
+            message: "Object removed by owner",
+        }
+    }
+    pub fn ValidationError() -> Self {
+        Self {
+            code: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
+            message: "Validation error",
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -208,16 +215,13 @@ impl LfsErrorResponse {
         request_id: None,
         status: StatusCode::INSUFFICIENT_STORAGE,
     };
-    const BANDWIDTH_LIMIT_EXCEEDED: Self = Self {
-        message: "A bandwidth limit has been exceeded.",
-        documentation_url: None,
-        request_id: None,
-        status: StatusCode::from_u16(509).unwrap(),
-    };
+    // const BANDWIDTH_LIMIT_EXCEEDED: Self = Self {
+    //     message: "A bandwidth limit has been exceeded.",
+    //     documentation_url: None,
+    //     request_id: None,
+    //     status: StatusCode::from_u16(509).unwrap(),
+    // };
 }
-
-#[get("/<user>/<repo>/info/lfs/objects/batch")]
-pub fn transfer(user: String, repo: String) {}
 
 #[cfg(test)]
 mod test {
@@ -265,7 +269,7 @@ mod test {
             serde_json::to_string_pretty(&BatchResponse {
                 transfer: Some(Transfer::Basic),
                 objects: vec![ObjectResponse {
-                    error: Some(ObjectError::DOES_NOT_EXIST),
+                    error: Some(ObjectError::DoesNotExist()),
                     object: Object {
                         oid: "1111111".to_string(),
                         size: 123,

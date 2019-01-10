@@ -1,35 +1,37 @@
-use rocket::http::{ContentType, Status};
-use rocket::response::Result as RocketResult;
-use rocket::Config;
-use rocket::Response;
-use rocket::State;
-use rocket_contrib::json::Json;
+use actix_web::{
+    client, error, http::header, http::StatusCode, Body, HttpMessage, HttpRequest, HttpResponse,
+    Responder,
+};
+use actix_web::{FutureResponse as ActixFutureReponse, Json, Result as ActixResult};
 use url::Url;
 
+use crate::error::Error;
 use crate::spec::batch::{
     Action, Actions, BatchRequest, BatchResponse, ObjectError, ObjectResponse, Operation, Transfer,
 };
+use crate::spec::GIT_LFS_CONTENT_TYPE;
 
 // TODO: Enable download-only capability via public IPFS gateway -- uploads will return a read-only error
+// TODO: Make batch API hide actions for already uploaded objects
 
-#[post(
-    "/objects/batch",
-    format = "application/vnd.git-lfs+json",
-    data = "<request>"
-)]
-pub fn endpoint<'a>(request: Json<BatchRequest>, config: State<Config>) -> RocketResult<'a> {
-    let base_url = Url::parse(&format!("http://{}:{}/", config.address, config.port)).unwrap();
+pub fn endpoint<'a>(batch: Json<BatchRequest>) -> impl Responder {
+    let base_url = Url::parse("http://localhost:5002/transfer/basic/").unwrap();
+    // &format!(
+    // "http://{}:{}/transfer/basic/",
+    // req.server_settings().local_addr().ip(),
+    // req.server_settings().local_addr().port()
     let download_url = base_url.join("download/").unwrap();
     let upload_url = base_url.join("upload/").unwrap();
     let verify_url = base_url.join("verify").unwrap();
-    if !request.transfer.contains(&Transfer::Basic) {
-        return Err(Status::NotImplemented);
+    if !batch.transfer.contains(&Transfer::Basic) {
+        let err: actix_web::error::Error = Error::TransferUnavailable.into();
+        return Err(err);
     }
 
-    let objects: Vec<ObjectResponse> = request
+    let objects: Vec<ObjectResponse> = batch
         .objects
         .iter()
-        .map(|object| match request.operation {
+        .map(|object| match batch.operation {
             Operation::Download => download_url
                 .clone()
                 .join(&object.oid)
@@ -41,7 +43,7 @@ pub fn endpoint<'a>(request: Json<BatchRequest>, config: State<Config>) -> Rocke
                 })
                 .unwrap_or(ObjectResponse::error(
                     object.clone(),
-                    ObjectError::VALIDATION_ERROR,
+                    ObjectError::ValidationError(),
                 )),
             Operation::Upload => upload_url
                 .clone()
@@ -57,7 +59,7 @@ pub fn endpoint<'a>(request: Json<BatchRequest>, config: State<Config>) -> Rocke
                 })
                 .unwrap_or(ObjectResponse::error(
                     object.clone(),
-                    ObjectError::VALIDATION_ERROR,
+                    ObjectError::ValidationError(),
                 )),
         })
         .collect();
@@ -66,9 +68,8 @@ pub fn endpoint<'a>(request: Json<BatchRequest>, config: State<Config>) -> Rocke
         objects,
     };
     let json =
-        serde_json::to_vec_pretty(&batch_response).map_err(|_| Status::InternalServerError)?;
-    Ok(Response::build()
-        .header(ContentType::new("application", "vnd.git-lfs+json"))
-        .sized_body(std::io::Cursor::new(json))
-        .finalize())
+        serde_json::to_vec_pretty(&batch_response).map_err(|err| Error::SerializeJsonError)?;
+    Ok(HttpResponse::Ok()
+        .header(header::CONTENT_TYPE, GIT_LFS_CONTENT_TYPE)
+        .body(json))
 }

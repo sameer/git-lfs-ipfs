@@ -1,51 +1,105 @@
-use actix_web::{client, error, http::StatusCode, Body, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::Path;
+use actix_web::{
+    client, error, http::header, AsyncResponder, HttpMessage, HttpRequest, HttpResponse,
+};
 use actix_web::{FutureResponse as ActixFutureReponse, Json};
-use failure::Fail;
 use futures::future;
 use futures::prelude::*;
 use lazy_static::lazy_static;
 use multiaddr::{AddrComponent, ToMultiaddr};
 use multihash::Hash;
+use rand::{distributions::Alphanumeric, rngs::SmallRng, FromEntropy, Rng};
 use rust_base58::ToBase58;
+use std::iter::FromIterator;
 use url::Url;
 
+use crate::error::Error;
 use crate::spec::transfer::basic::VerifyRequest;
 
 lazy_static! {
     static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
 
-pub fn upload_object<S: 'static>(
-    oid: String,
-    req: HttpRequest<S>,
-) -> ActixFutureReponse<HttpResponse> {
-    Box::new(
-        future::result(sha256_to_multihash(&oid))
-            .map_err(|err| err.into())
-            .and_then(|multihash| {
-                ipfs_api_url()
-                    .map(|url| {
-                        let mut url = url.join("api/v0/add").unwrap();
-                        url.query_pairs_mut().append_pair("raw-leaves", "true");
-                        url
-                    })
-                    .ok_or(Error::LocalApiUnavailableError.into())
-            })
-            .and_then(|url| {
-                let mut mpart = mpart_async::MultipartRequest::default();
-                mpart.add_stream("path", "", "application/octet-stream", req.payload());
-                client::post(url)
-                    .body(Body::Streaming(Box::new(mpart.map_err(|err| err.into()))))
-                    .unwrap()
-                    .send()
-                    .map_err(|err| err.into())
-                    .map(|_res| HttpResponse::Ok().finish())
-            }),
+fn multipart_boundary() -> String {
+    format!(
+        "------------------------{}",
+        String::from_iter(SmallRng::from_entropy().sample_iter(&Alphanumeric).take(18))
     )
 }
 
-#[get("/download/<oid>")]
-pub fn download_object(oid: String) -> ActixFutureReponse<HttpResponse> {
+fn multipart_begin(boundary: &str) -> String {
+    format!(
+        "POST /api/v0/add HTTP/1.1\r\nHost: localhost:5001\r\nContent-Type: multipart/form-data; boundary={}\r\n--{}\r\n\r\nContent-Disposition: form-data; name=\"path\"; filename=\"file\"\r\nContent-Type: application/octet-stream\r\n\r\n
+",
+        boundary, boundary,
+    )
+}
+
+fn multipart_end(boundary: &str) -> String {
+    format!("\r\n--{}--\r\n", boundary)
+}
+
+pub fn upload_object((oid, req): (Path<String>, HttpRequest)) -> ActixFutureReponse<HttpResponse> {
+    let url = sha256_to_multihash(&oid)
+        .map_err(|err| err.into())
+        .and_then(|multihash| {
+            ipfs_api_url()
+                .map(|url| {
+                    let mut url = url.join("api/v0/add").unwrap();
+                    url.query_pairs_mut().append_pair("raw-leaves", "true");
+                    url
+                })
+                .ok_or(Error::LocalApiUnavailableError.into())
+        });
+    if let Err(err) = url {
+        return Box::new(future::err(err));
+    }
+    println!("Sending upload to {:?}", url);
+    let boundary = multipart_boundary();
+    client::post(url.unwrap())
+        .header(
+            header::CONTENT_TYPE,
+            format!("{}; boundary={}", mime::MULTIPART_FORM_DATA, boundary),
+        )
+        .streaming(
+            // req.payload()
+            future::ok(bytes::Bytes::from(multipart_begin(&boundary).as_bytes()))
+                .into_stream()
+                .chain(req.payload())
+                .chain(
+                    future::ok(bytes::Bytes::from(multipart_end(&boundary).as_bytes()))
+                        .into_stream(),
+                ),
+        )
+        .unwrap()
+        .send()
+        .timeout(std::time::Duration::from_secs(600))
+        .map_err(error::Error::from)
+        .and_then(construct_response)
+        .responder()
+}
+
+fn construct_response(
+    resp: client::ClientResponse,
+) -> Box<Future<Item = HttpResponse, Error = error::Error>> {
+    println!("Building response");
+    // Box::new(future::ok(HttpResponse::Ok().finish()))
+    let mut client_resp = HttpResponse::build(resp.status());
+    for (header_name, header_value) in resp.headers().iter().filter(|(h, _)| *h != "connection") {
+        client_resp.header(header_name.clone(), header_value.clone());
+    }
+    if resp.chunked().unwrap_or(false) {
+        Box::new(future::ok(client_resp.streaming(resp.payload())))
+    } else {
+        Box::new(
+            resp.body()
+                .from_err()
+                .and_then(move |body| Ok(client_resp.body(body))),
+        )
+    }
+}
+
+pub fn download_object(oid: Path<String>) -> ActixFutureReponse<HttpResponse> {
     Box::new(
         future::result(sha256_to_multihash(&oid))
             .map_err(|err| err.into())
@@ -76,60 +130,39 @@ pub fn download_object(oid: String) -> ActixFutureReponse<HttpResponse> {
     )
 }
 
-#[post("/verify", format = "application/vnd.git-lfs+json", data = "<request>")]
 pub fn verify_object(request: Json<VerifyRequest>) -> ActixFutureReponse<HttpResponse> {
+    let url = sha256_to_multihash(&request.object.oid)
+        .map_err(|err| err.into())
+        .map(|multihash| {
+            // TODO: also verify size matches ls result,
+            // might occur if there's hash collision
+            ipfs_api_url()
+                .map(|url| {
+                    let mut url = url.join("api/v0/ls").unwrap();
+                    url.query_pairs_mut()
+                        .append_pair("arg", &format!("/ipfs/{}", &multihash));
+                    url
+                })
+                .unwrap_or_else(|| IPFS_PUBLIC_API_URL.clone().join(&multihash).unwrap())
+        });
+    if let Err(err) = url {
+        return Box::new(future::err(err));
+    }
     Box::new(
-        future::result(sha256_to_multihash(&request.object.oid))
+        client::get(url.unwrap())
+            .finish()
+            .unwrap()
+            .send()
+            .timeout(std::time::Duration::from_secs(600))
             .map_err(|err| err.into())
-            .map(|multihash| {
-                // TODO: also verify size matches ls result,
-                // might occur if there's hash collision
-                ipfs_api_url()
-                    .map(|url| {
-                        let mut url = url.join("api/v0/ls").unwrap();
-                        url.query_pairs_mut()
-                            .append_pair("arg", &format!("/ipfs/{}", &multihash));
-                        url
-                    })
-                    .unwrap_or_else(|| IPFS_PUBLIC_API_URL.clone().join(&multihash).unwrap())
-            })
-            .and_then(|url| {
-                client::get(url.into_string())
-                    .finish()
-                    .unwrap()
-                    .send()
-                    .map_err(|err| err.into())
-                    .and_then(|res| {
-                        if res.status().is_success() {
-                            Ok(HttpResponse::Ok().finish())
-                        } else {
-                            Err(Error::IpfsApiError(res.status()).into())
-                        }
-                    })
+            .and_then(|res| {
+                if res.status().is_success() {
+                    Ok(HttpResponse::Ok().finish())
+                } else {
+                    Err(Error::IpfsApiError(res.status()).into())
+                }
             }),
     )
-}
-
-#[derive(Fail, Debug)]
-enum Error {
-    #[fail(display = "A bad SHA2-256 hash was provided.")]
-    HashError,
-    #[fail(
-        display = "A local API could not be found, and the public API does not support this functionality."
-    )]
-    LocalApiUnavailableError,
-    #[fail(display = "An error was encountered in a request to the IPFS API")]
-    IpfsApiError(StatusCode),
-}
-
-impl error::ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        match *self {
-            Error::HashError => HttpResponse::new(StatusCode::BAD_REQUEST),
-            Error::LocalApiUnavailableError => HttpResponse::new(StatusCode::UNPROCESSABLE_ENTITY),
-            Error::IpfsApiError(status) => HttpResponse::new(status),
-        }
-    }
 }
 
 fn sha256_to_multihash(sha256_str: &str) -> Result<String, Error> {

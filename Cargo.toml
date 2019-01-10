@@ -5,7 +5,7 @@ authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "0.7", default-features = false }
+actix-web = { version = "0.7", default-features = false, features = ["cell"] }
 actix = "0.7"
 serde = "1.0"
 serde_derive = "1.0"
@@ -22,7 +22,12 @@ base64 = "0.10"
 dirs = "1.0"
 futures = "0.1.25"
 failure = "0.1"
-mpart-async = "0.2"
+mime = "0.3"
+env_logger = "0.6"
+hyper-multipart-rfc7578 = { git = "https://github.com/sameer/rust-hyper-multipart-rfc7578/", version = "0.2.0-alpha2", default-features = false, features = ["actix"] }
+rand = "0.6"
+bytes = "0.4"
+
 
 [dev-dependencies]
 pretty_assertions = "0.5"
