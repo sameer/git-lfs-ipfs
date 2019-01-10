@@ -1,7 +1,7 @@
 use actix_web::{HttpResponse, http::StatusCode, error::ResponseError};
 use failure::Fail;
 
-#[derive(Fail, Debug)]
+#[derive(Fail, Debug, Clone)]
 pub enum Error {
     #[fail(display = "A bad SHA2-256 hash was provided")]
     HashError,

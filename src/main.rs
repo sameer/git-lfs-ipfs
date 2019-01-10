@@ -1,4 +1,5 @@
-extern crate base64;
+extern crate hex;
+extern crate cid;
 extern crate dirs;
 extern crate env_logger;
 extern crate failure;
@@ -8,13 +9,13 @@ extern crate lazy_static;
 extern crate mime;
 extern crate multiaddr;
 extern crate multihash;
+extern crate rand;
 extern crate rust_base58;
 extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate url;
 extern crate url_serde;
-extern crate rand;
 
 #[cfg(test)]
 #[macro_use]

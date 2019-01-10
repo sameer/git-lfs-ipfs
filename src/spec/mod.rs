@@ -2,6 +2,7 @@ use serde_derive::{Deserialize, Serialize};
 
 pub mod batch;
 pub mod transfer;
+pub mod ipfs;
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Object {

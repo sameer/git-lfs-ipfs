@@ -18,7 +18,6 @@ chrono = { version = "0.4", features = ["serde"] }
 multihash = "0.8"
 multiaddr = { git = "https://github.com/multiformats/rust-multiaddr/", version = "0.3.1" }
 rust-base58 = "0.0.4"
-base64 = "0.10"
 dirs = "1.0"
 futures = "0.1.25"
 failure = "0.1"
@@ -27,6 +26,8 @@ env_logger = "0.6"
 hyper-multipart-rfc7578 = { git = "https://github.com/sameer/rust-hyper-multipart-rfc7578/", version = "0.2.0-alpha2", default-features = false, features = ["actix"] }
 rand = "0.6"
 bytes = "0.4"
+cid = "0.3"
+hex = "0.3"
 
 
 [dev-dependencies]
