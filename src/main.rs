@@ -1,9 +1,9 @@
-extern crate hex;
 extern crate cid;
 extern crate dirs;
 extern crate env_logger;
 extern crate failure;
 extern crate futures;
+extern crate hex;
 extern crate hyper_multipart_rfc7578;
 extern crate lazy_static;
 extern crate mime;
@@ -25,6 +25,7 @@ use actix_web::{http::header, middleware::Logger, pred, App};
 
 mod batch;
 mod error;
+mod ipfs;
 mod spec;
 mod transfer;
 
@@ -33,9 +34,8 @@ fn main() {
     actix_web::server::new(|| {
         vec![
             App::new()
-                .prefix("/transfer/basic/")
                 .middleware(Logger::default())
-                .resource("/verify", |r| {
+                .resource("/{org}/{repo-name}/transfer/basic/verify", |r| {
                     r.post()
                         .filter(pred::Header(
                             header::CONTENT_TYPE.as_str(),
@@ -43,10 +43,10 @@ fn main() {
                         ))
                         .with_async(transfer::basic::verify_object)
                 })
-                .resource("/download/{oid}", |r| {
+                .resource("/{org}/{repo-name}/transfer/basic/download/{oid}", |r| {
                     r.get().with_async(transfer::basic::download_object)
                 })
-                .resource("/upload/{oid}", |r| {
+                .resource("/{org}/{repo-name}/transfer/basic/upload/{oid}", |r| {
                     r.put()
                         // .filter(pred::Header(
                         //     header::CONTENT_TYPE.as_str(),
@@ -57,7 +57,7 @@ fn main() {
                 .boxed(),
             App::new()
                 .middleware(Logger::default())
-                .resource("/objects/batch", |r| {
+                .resource("/{org}/{repo-name}/objects/batch", |r| {
                     r.post()
                         // .filter(pred::Header(
                         //     header::CONTENT_TYPE.as_str(),

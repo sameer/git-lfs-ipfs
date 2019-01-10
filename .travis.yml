@@ -2,6 +2,8 @@ sudo: true
 dist: xenial
 language: rust
 rust:
+  - stable
+  - beta
   - nightly
 script:
   - ./test/build_kcov.sh
