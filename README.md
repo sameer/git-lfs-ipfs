@@ -10,24 +10,57 @@ A git-lfs server implementation in Rust using IPFS for storage.
 
 ### Solely IPFS (not possible at the moment)
 
+#### First time
+
 ```bash
-# Do your git lfs stuff
-# Add http://localhost:5002/ipfs/<ipfs empty folder hash> as the LFS server
+# Do your git stuff
+# Use http://localhost:5002/ipfs/QmEmptyFolderHash as the LFS server for the first time
 git lfs push
-# Manually update url to http://localhost:5002/ipfs/<ipfs new hash>
+# Manually update url to http://localhost:5002/ipfs/QmNewHash
+git add .lfsconfig
+git commit -m "Update git lfs URL"
 git push origin master
 ```
 
-### With IPNS (WIP)
+#### Subsequently
 
 ```bash
+# Do your git stuff
+# Use http://localhost:5002/ipfs/QmCurrentHash as the LFS server for the first time
+git lfs push
+# Manually update url to http://localhost:5002/ipfs/QmNewHash
+git add .lfsconfig
+git commit -m "Update git lfs URL"
+git push origin master
+```
+
+### With IPNS publish (WIP)
+
+#### First time
+
+```bash
+# Make a key for the first time
 ipfs gen key myrepokey --type=rsa
 ipfs name publish QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn --key=myrepokey
-# Do your git lfs stuff
-# Add http://localhost:5002/ipns/QmIpnsPeerId as the LFS server
+```
+
+#### Subsequently
+
+```bash
+# Do your git stuff
+# Use http://localhost:5002/ipns/QmIpnsPeerId as the LFS server
 git push origin master
 # The ipns key, if available locally, will be used to update the hash
 # else only download can be done
+```
+
+### With DNSLink (not possible at the moment)
+
+```bash
+# Do your git lfs stuff
+# Use http://localhost:5002/ipfns/mysite.com as the LFS server
+git push origin master
+# Manually update DNSLink record to /ipfs/QmNewHash
 ```
 
 ## Behind the Scenes
@@ -35,21 +68,21 @@ git push origin master
 ### Upload
 
 ```bash
-ipfs add object --> <object hash>
-ipfs name resolve /ipns/<ipns peer id> --> <ipfs hash>
-ipfs object patch link <ipfs hash> <object id> <object hash> --> <new ipfs hash>
-ipfs name publish /ipns/<ipns peer id> <new ipfs hash>
+ipfs add object --> QmObjectHash
+ipfs name resolve /ipns/QmPeerId --> QmCurrentHash
+ipfs object patch link QmCurrentHash <object id (sha256sum)> QmObjectId --> QmNewHash
+ipfs name publish /ipns/QmPeerId QmNewHash
 ```
 
 ### Verify
 
 ```bash
-ipfs ls /ipns/<ipns peer id> --> <unixfs links list>
+ipfs ls /ipns/QmPeerId --> <unixfs links list>
 grep <object id> <unixfs links list>
 ```
 
 ### Download
 
 ```bash
-ipfs get /ipns/<ipns peer id>/<object id>
+ipfs get /ipns/QmPeerId/<object id>
 ```
