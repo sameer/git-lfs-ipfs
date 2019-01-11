@@ -1,4 +1,3 @@
-use crate::spec::ipfs::KeyListResponse;
 use actix_web::dev::Payload;
 use actix_web::{
     client, http::header, AsyncResponder, FutureResponse as ActixFutureReponse, HttpMessage,
@@ -16,7 +15,7 @@ use url::Url;
 use std::iter::FromIterator;
 
 use crate::error::Error;
-use crate::spec::ipfs::AddResponse;
+use crate::spec::ipfs::*;
 
 const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
@@ -70,7 +69,7 @@ fn multipart_end(boundary: &str) -> String {
 //     .get(header::CONTENT_LENGTH)
 //     .and_then(|x| x.to_str().ok()),
 
-pub fn upload(
+pub fn add(
     payload: Payload,
     length: Option<u64>,
 ) -> impl Future<Item = AddResponse, Error = Error> {
@@ -115,7 +114,7 @@ pub fn upload(
         })
 }
 
-pub fn download<MF>(multihash: MF) -> impl Future<Item = HttpResponse, Error = Error>
+pub fn get<MF>(multihash: MF) -> impl Future<Item = HttpResponse, Error = Error>
 where
     MF: Future<Item = Vec<u8>, Error = Error>,
 {
@@ -161,10 +160,7 @@ where
                 url.query_pairs_mut().append_pair("arg", &name);
                 Ok(url)
             }
-            Err(_) => Ok(IPFS_PUBLIC_API_URL
-                .clone()
-                .join(&name)
-                .unwrap()),
+            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&name).unwrap()),
         })
     })
     .map(|url| client::get(url).finish().unwrap())
@@ -184,19 +180,92 @@ where
     })
 }
 
+pub fn ls<NF>(name: NF) -> impl Future<Item = LsResponse, Error = Error>
+where
+    NF: Future<Item = String, Error = Error>,
+{
+    ipfs_api_url()
+        .join(name)
+        .map(|(url, name)| {
+            let mut url = url.join("api/v0/ls").unwrap();
+            url.query_pairs_mut().append_pair("arg", &name);
+
+            url
+        })
+        .map(|url| client::get(url).finish().unwrap())
+        .and_then(|client| {
+            client
+                .send()
+                .map_err(|err| Error::IpfsApiSendRequestError(err))
+        })
+        .and_then(|res| {
+            if res.status().is_success() {
+                Ok(res)
+            } else {
+                Err(Error::IpfsApiResponseError(res.status()).into())
+            }
+        })
+        .and_then(|res| {
+            res.json()
+                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+        })
+}
+
+pub fn object_patch_link<MF, NF, CF>(
+    modify_multihash: MF,
+    name: NF,
+    add_multihash: MF,
+    create: CF,
+) -> impl Future<Item = ObjectResponse, Error = Error>
+where
+    MF: Future<Item = Vec<u8>, Error = Error>,
+    NF: Future<Item = String, Error = Error>,
+    CF: Future<Item = bool, Error = Error>,
+{
+    ipfs_api_url()
+        .join5(modify_multihash, name, add_multihash, create)
+        .map(|(url, modify_multihash, name, add_multihash, create)| {
+            let mut url = url.join("api/v0/object/patch/add-link").unwrap();
+            url.query_pairs_mut().append_pair("arg", &modify_multihash.to_base58());
+            url.query_pairs_mut().append_pair("arg", &name);
+            url.query_pairs_mut().append_pair("arg", &add_multihash.to_base58());
+            url.query_pairs_mut().append_pair("create", create);
+
+            url
+        })
+        .map(|url| client::get(url).finish().unwrap())
+        .and_then(|client| {
+            client
+                .send()
+                .map_err(|err| Error::IpfsApiSendRequestError(err))
+        })
+        .and_then(|res| {
+            if res.status().is_success() {
+                Ok(res)
+            } else {
+                Err(Error::IpfsApiResponseError(res.status()).into())
+            }
+        })
+        .and_then(|res| {
+            res.json()
+                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+        })
+}
+
 pub fn name_publish<MF, KF>(multihash: MF, key: KF) -> impl Future<Item = String, Error = Error>
 where
     MF: Future<Item = Vec<u8>, Error = Error>,
-    KF: Future<Item = String, Error = Error>,
+    KF: Future<Item = Key, Error = Error>,
 {
-    multihash.join(key)
+    multihash
+        .join(key)
         .and_then(|(multihash, key)| {
             ipfs_api_url().then(|url| match url {
                 Ok(url) => {
                     let mut url = url.join("api/v0/name/publish").unwrap();
                     url.query_pairs_mut()
                         .append_pair("arg", &format!("/ipfs/{}", multihash.to_base58()))
-                        .append_pair("key", &key);
+                        .append_pair("key", &key.name);
                     Ok(url)
                 }
                 Err(_) => Ok(IPFS_PUBLIC_API_URL
@@ -210,16 +279,16 @@ where
             client
                 .send()
                 .map_err(|err| Error::IpfsApiSendRequestError(err))
-                .and_then(|res| {
-                    if res.status().is_success() {
-                        Ok(res)
-                    } else {
-                        Err(Error::IpfsApiResponseError(res.status()).into())
-                    }
-                })
-                .and_then(|res| res.body().map_err(|err| Error::IpfsApiPayloadError(err)))
-                .map(|bytes: Bytes| String::from_utf8_lossy(&bytes).to_string())
         })
+        .and_then(|res| {
+            if res.status().is_success() {
+                Ok(res)
+            } else {
+                Err(Error::IpfsApiResponseError(res.status()).into())
+            }
+        })
+        .and_then(|res| res.body().map_err(|err| Error::IpfsApiPayloadError(err)))
+        .map(|bytes: Bytes| String::from_utf8_lossy(&bytes).to_string())
 }
 
 pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
