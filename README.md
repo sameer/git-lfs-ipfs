@@ -9,6 +9,7 @@ A git-lfs server implementation in Rust using IPFS for storage.
 ## Workflow
 
 ### Solely IPFS (not possible at the moment)
+
 ```bash
 # Do your git lfs stuff
 # Add http://localhost:5002/ipfs/<ipfs empty folder hash> as the LFS server
@@ -18,6 +19,7 @@ git push origin master
 ```
 
 ### With IPNS (WIP)
+
 ```bash
 ipfs gen key myrepokey --type=rsa
 ipfs name publish QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn --key=myrepokey
@@ -31,6 +33,7 @@ git push origin master
 ## Behind the Scenes
 
 ### Upload
+
 ```bash
 ipfs add object --> <object hash>
 ipfs name resolve /ipns/<ipns peer id> --> <ipfs hash>
@@ -39,12 +42,14 @@ ipfs name publish /ipns/<ipns peer id> <new ipfs hash>
 ```
 
 ### Verify
+
 ```bash
 ipfs ls /ipns/<ipns peer id> --> <unixfs links list>
 grep <object id> <unixfs links list>
 ```
 
 ### Download
+
 ```bash
 ipfs get /ipns/<ipns peer id>/<object id>
 ```
