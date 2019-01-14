@@ -17,8 +17,6 @@ use std::iter::FromIterator;
 use crate::error::Error;
 use crate::spec::ipfs::*;
 
-const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
-
 lazy_static! {
     static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
@@ -65,6 +63,14 @@ fn multipart_end(boundary: &str) -> String {
     format!("\r\n--{}--\r\n", boundary)
 }
 
+pub fn parse_ipfs_path(prefix: Prefix, path_type: &str) -> impl Future<Item = IpfsPath, Error = Error> {
+    if let Some(path_type) = PathType::parse(path_type) {
+        future::result(IpfsPath::parse(prefix, path_type).ok_or(Error::IpfsPathParseError))
+    } else {
+        future::err(Error::IpfsPathParseError)
+    }
+}
+
 // req.headers()
 //     .get(header::CONTENT_LENGTH)
 //     .and_then(|x| x.to_str().ok()),
@@ -82,7 +88,7 @@ pub fn add(
             //     .append_pair("cid-version", "0");
             url
         })
-        .map(|url| {
+        .map(move |url| {
             let boundary = multipart_boundary();
             client::post(url)
                 .header(
@@ -120,7 +126,7 @@ where
 {
     multihash
         .and_then(|multihash| {
-            ipfs_api_url().then(|url| match url {
+            ipfs_api_url().then(move |url| match url {
                 Ok(url) => {
                     let mut url = url.join("api/v0/get").unwrap();
                     url.query_pairs_mut()
@@ -154,7 +160,7 @@ where
     NF: Future<Item = String, Error = Error>,
 {
     name.and_then(|name| {
-        ipfs_api_url().then(|url| match url {
+        ipfs_api_url().then(move |url| match url {
             Ok(url) => {
                 let mut url = url.join("api/v0/resolve").unwrap();
                 url.query_pairs_mut().append_pair("arg", &name);
@@ -218,7 +224,7 @@ pub fn object_patch_link<MF, NF, CF>(
     create: CF,
 ) -> impl Future<Item = ObjectResponse, Error = Error>
 where
-    MF: Future<Item = Vec<u8>, Error = Error>,
+    MF: Future<Item = String, Error = Error>,
     NF: Future<Item = String, Error = Error>,
     CF: Future<Item = bool, Error = Error>,
 {
@@ -226,10 +232,10 @@ where
         .join5(modify_multihash, name, add_multihash, create)
         .map(|(url, modify_multihash, name, add_multihash, create)| {
             let mut url = url.join("api/v0/object/patch/add-link").unwrap();
-            url.query_pairs_mut().append_pair("arg", &modify_multihash.to_base58());
+            url.query_pairs_mut().append_pair("arg", &modify_multihash);
             url.query_pairs_mut().append_pair("arg", &name);
-            url.query_pairs_mut().append_pair("arg", &add_multihash.to_base58());
-            url.query_pairs_mut().append_pair("create", create);
+            url.query_pairs_mut().append_pair("arg", &add_multihash);
+            url.query_pairs_mut().append_pair("create", &format!("{}", create));
 
             url
         })
@@ -260,7 +266,7 @@ where
     multihash
         .join(key)
         .and_then(|(multihash, key)| {
-            ipfs_api_url().then(|url| match url {
+            ipfs_api_url().then(move |url| match url {
                 Ok(url) => {
                     let mut url = url.join("api/v0/name/publish").unwrap();
                     url.query_pairs_mut()

@@ -55,34 +55,33 @@ pub struct Ref {
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
-pub struct ObjectResponse {
-    #[serde(flatten)]
-    object: Object,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<ObjectError>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    authenticated: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    actions: Option<Actions>,
+#[serde(untagged)]
+pub enum ObjectResponse {
+    Success {
+        #[serde(flatten)]
+        object: Object,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        authenticated: Option<bool>,
+        actions: Actions,
+    },
+    Error {
+        #[serde(flatten)]
+        object: Object,
+        error: ObjectError,
+    },
 }
 
 impl ObjectResponse {
     pub fn success(object: Object, actions: Actions) -> Self {
-        Self {
+        ObjectResponse::Success {
             object,
-            error: None,
             authenticated: None,
-            actions: Some(actions),
+            actions: actions,
         }
     }
 
     pub fn error(object: Object, error: ObjectError) -> Self {
-        Self {
-            object,
-            error: Some(error),
-            authenticated: None,
-            actions: None,
-        }
+        ObjectResponse::Error { object, error }
     }
 }
 
@@ -233,8 +232,7 @@ mod test {
             include_str!("test/batch_response_success.json"),
             serde_json::to_string_pretty(&BatchResponse {
                 transfer: Some(Transfer::Basic),
-                objects: vec![ObjectResponse {
-                    error: None,
+                objects: vec![ObjectResponse::Success {
                     object: Object {
                         oid: "1111111".to_string(),
                         size: 123,
@@ -258,7 +256,6 @@ mod test {
                         upload: None,
                         verify: None,
                     }
-                    .into(),
                 }],
             })
             .unwrap(),
@@ -268,14 +265,12 @@ mod test {
             include_str!("test/batch_response_error.json"),
             serde_json::to_string_pretty(&BatchResponse {
                 transfer: Some(Transfer::Basic),
-                objects: vec![ObjectResponse {
-                    error: Some(ObjectError::DoesNotExist()),
+                objects: vec![ObjectResponse::Error {
+                    error: ObjectError::DoesNotExist(),
                     object: Object {
                         oid: "1111111".to_string(),
                         size: 123,
                     },
-                    authenticated: None,
-                    actions: None,
                 }],
             })
             .unwrap()

@@ -12,6 +12,8 @@ pub enum Error {
         display = "A local IPFS API could not be found, and the public API cannot support this functionality"
     )]
     LocalApiUnavailableError,
+    #[fail(display = "An error was encountered in parsing an IPFS path")]
+    IpfsPathParseError,
     #[fail(display = "An error was encountered in receiving a response from the IPFS API")]
     IpfsApiPayloadError(PayloadError),
     #[fail(display = "An error was encountered in receiving a JSON response from the IPFS API")]
@@ -30,10 +32,16 @@ pub enum Error {
 
 impl ResponseError for Error {
     fn error_response(&self) -> HttpResponse {
-        match *self {
+        match self {
             Error::HashError => HttpResponse::new(StatusCode::BAD_REQUEST),
             Error::LocalApiUnavailableError => HttpResponse::new(StatusCode::UNPROCESSABLE_ENTITY),
-            Error::IpfsApiResponseError(status) => HttpResponse::new(status),
+            Error::IpfsPathParseError => HttpResponse::new(StatusCode::BAD_REQUEST),
+            Error::IpfsApiPayloadError(payload_error) => payload_error.error_response(),
+            Error::IpfsApiJsonPayloadError(json_payload_error) => {
+                json_payload_error.error_response()
+            }
+            Error::IpfsApiSendRequestError(send_request_error) => send_request_error.error_response(),
+            Error::IpfsApiResponseError(status) => HttpResponse::new(*status),
             Error::TransferUnavailable => HttpResponse::new(StatusCode::NOT_IMPLEMENTED),
             Error::SerializeJsonError => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
         }

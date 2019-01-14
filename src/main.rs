@@ -4,7 +4,6 @@ extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate hex;
-extern crate hyper_multipart_rfc7578;
 extern crate lazy_static;
 extern crate mime;
 extern crate multiaddr;
@@ -16,6 +15,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate url;
 extern crate url_serde;
+extern crate publicsuffix;
 
 #[cfg(test)]
 #[macro_use]
@@ -35,7 +35,7 @@ fn main() {
         vec![
             App::new()
                 .middleware(Logger::default())
-                .resource("/{org}/{repo-name}/transfer/basic/verify", |r| {
+                .resource("/{prefix}/{QmHash}/transfer/basic/verify", |r| {
                     r.post()
                         .filter(pred::Header(
                             header::CONTENT_TYPE.as_str(),
@@ -43,10 +43,10 @@ fn main() {
                         ))
                         .with_async(transfer::basic::verify_object)
                 })
-                .resource("/{org}/{repo-name}/transfer/basic/download/{oid}", |r| {
+                .resource("/{prefix}/{QmHash}/transfer/basic/download/{oid}", |r| {
                     r.get().with_async(transfer::basic::download_object)
                 })
-                .resource("/{org}/{repo-name}/transfer/basic/upload/{oid}", |r| {
+                .resource("/{prefix}/{QmHash}/transfer/basic/upload/{oid}", |r| {
                     r.put()
                         // .filter(pred::Header(
                         //     header::CONTENT_TYPE.as_str(),
@@ -57,7 +57,7 @@ fn main() {
                 .boxed(),
             App::new()
                 .middleware(Logger::default())
-                .resource("/{org}/{repo-name}/objects/batch", |r| {
+                .resource("/{prefix}/{QmHash}/objects/batch", |r| {
                     r.post()
                         // .filter(pred::Header(
                         //     header::CONTENT_TYPE.as_str(),
