@@ -8,7 +8,7 @@ A git-lfs server implementation in Rust using IPFS for storage.
 
 ## Workflow
 
-### Solely IPFS (not possible at the moment)
+### Solely IPFS (download only)
 
 #### First time
 
@@ -34,7 +34,7 @@ git commit -m "Update git lfs URL"
 git push origin master
 ```
 
-### With IPNS publish (WIP)
+### With IPNS publish (download only)
 
 #### First time
 
@@ -54,11 +54,11 @@ git push origin master
 # else only download can be done
 ```
 
-### With DNSLink (not possible at the moment)
+### With DNSLink (download only)
 
 ```bash
 # Do your git lfs stuff
-# Use http://localhost:5002/ipfns/mysite.com as the LFS server
+# Use http://localhost:5002/ipns/mysite.com as the LFS server
 git push origin master
 # Manually update DNSLink record to /ipfs/QmNewHash
 ```
@@ -71,7 +71,7 @@ git push origin master
 ipfs add object --> QmObjectHash
 ipfs name resolve /ipns/QmPeerId --> QmCurrentHash
 ipfs object patch link QmCurrentHash <object id (sha256sum)> QmObjectId --> QmNewHash
-ipfs name publish /ipns/QmPeerId QmNewHash
+ipfs name publish QmNewHash --key=QmPeerId
 ```
 
 ### Verify

@@ -8,7 +8,6 @@ use std::path::PathBuf;
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
 #[serde(untagged)]
 pub enum Result<T> {
     Ok(T),

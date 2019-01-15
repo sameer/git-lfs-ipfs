@@ -22,23 +22,16 @@ pub fn upload_object(
     let root = path.1;
     let oid = path.2;
     let object_hash = ipfs::add(req.payload(), None).map(|res: AddResponse| res.hash);
-    let current_cid = ipfs::resolve(ipfs::parse_ipfs_path(
-        prefix.clone(),
-        &root,
-        PathBuf::from(oid.clone()),
-    ));
-    let new_cid = ipfs::object_patch_link(
-        current_cid,
-        ipfs::sha256_to_cid(&oid),
-        object_hash,
-        future::ok(false),
-    )
-    .map(|x: ObjectResponse| x.object.hash);
-    let key = ipfs::key_list()
-        .join(ipfs::parse_ipfs_path(prefix, &root, PathBuf::from(oid)))
-        .and_then(
-            |(mut key_list_response, path): (KeyListResponse, IpfsPath)| {
-                debug!("Finding matching key in {:?}", key_list_response);
+    let current_cid = ipfs::parse_ipfs_path(prefix.clone(), &root, PathBuf::from(oid.clone()))
+        .and_then(|path| ipfs::resolve(path));
+    let key =
+        ipfs::parse_ipfs_path(prefix.clone(), &root, PathBuf::from(oid.clone())).and_then(|path| {
+            ipfs::key_list().and_then(move |mut key_list_response: KeyListResponse| {
+                debug!("Looking for key {}", path.root);
+                key_list_response
+                    .keys
+                    .iter()
+                    .for_each(|key| debug!("Checking key {} with hash {}", key.name, key.id));
                 key_list_response
                     .keys
                     .drain(..)
@@ -46,11 +39,23 @@ pub fn upload_object(
                         Root::Cid(cid) => cid.hash == x.id.hash,
                         _ => false,
                     })
+                    .map(|x| {
+                        debug!("Found matching key!");
+                        x
+                    })
                     .ok_or(Error::IpfsUploadNotPossible)
-            },
-        );
+            })
+        });
+    let new_cid = current_cid
+        .join(object_hash)
+        .and_then(move |(current_cid, object_hash)| {
+            ipfs::object_patch_link(current_cid, oid.clone(), object_hash, false)
+        })
+        .map(|x: ObjectResponse| x.object.hash);
     Box::new(
-        ipfs::name_publish(new_cid, key)
+        new_cid
+            .join(key)
+            .and_then(|(new_cid, key)| ipfs::name_publish(new_cid, key))
             .map(|_| HttpResponse::Ok().finish())
             .map_err(actix_web::error::Error::from),
     )
@@ -62,12 +67,9 @@ pub fn download_object(path: Path<(Prefix, String, String)>) -> ActixFutureRepon
     let root = path.1;
     let oid = path.2;
     Box::new(
-        ipfs::get(ipfs::parse_ipfs_path(
-            prefix,
-            &root,
-            PathBuf::from(oid),
-        ))
-        .map_err(actix_web::error::Error::from),
+        ipfs::parse_ipfs_path(prefix, &root, PathBuf::from(oid))
+            .and_then(|path| ipfs::get(path))
+            .map_err(actix_web::error::Error::from),
     )
 }
 
@@ -79,19 +81,16 @@ pub fn verify_object(
     let root = path.1;
     let oid = request.into_inner().object.oid;
     Box::new(
-        ipfs::ls(ipfs::parse_ipfs_path(
-            prefix,
-            &root,
-            PathBuf::from(oid.clone()),
-        ))
-        .and_then(|mut res: LsResponse| {
-            res.objects
-                .drain(..)
-                .nth(0)
-                .map(move |mut x: Object| x.links.drain(..).find(|y: &Link| y.name == oid))
-                .ok_or(Error::VerifyFailed)
-        })
-        .map(|_link| HttpResponse::Ok().finish())
-        .map_err(actix_web::error::Error::from),
+        ipfs::parse_ipfs_path(prefix, &root, PathBuf::from(oid.clone()))
+            .and_then(|path| ipfs::ls(path))
+            .and_then(|mut res: LsResponse| {
+                res.objects
+                    .drain(..)
+                    .nth(0)
+                    .map(move |mut x: Object| x.links.drain(..).find(|y: &Link| y.name == oid))
+                    .ok_or(Error::VerifyFailed)
+            })
+            .map(|_link| HttpResponse::Ok().finish())
+            .map_err(actix_web::error::Error::from),
     )
 }

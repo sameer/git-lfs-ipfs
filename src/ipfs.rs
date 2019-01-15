@@ -132,12 +132,9 @@ pub fn add(
         })
 }
 
-pub fn get<IF>(path: IF) -> impl Future<Item = HttpResponse, Error = Error>
-where
-    IF: Future<Item = Path, Error = Error>,
-{
-    path.and_then(|path| {
-        ipfs_api_url().then(move |url| match url {
+pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
+    ipfs_api_url()
+        .then(move |url| match url {
             Ok(url) => {
                 let mut url = url.join("api/v0/get").unwrap();
                 url.query_pairs_mut().append_pair("arg", &path.to_string());
@@ -145,33 +142,29 @@ where
             }
             Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
         })
-    })
-    .and_then(|url| {
-        debug!("Sending get request to {}", url);
-        client::get(url)
-            .finish()
-            .unwrap()
-            .send()
-            .timeout(Duration::from_secs(600))
-            .map_err(|err| Error::IpfsApiSendRequestError(err))
-    })
-    // TODO: Handle json error responses
-    .and_then(|res| {
-        // if res.status().is_success() {
-        Ok(HttpResponse::Ok().streaming(res.payload()))
-        // }
-        // else {
-        //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
-        // }
-    })
+        .and_then(|url| {
+            debug!("Sending get request to {}", url);
+            client::get(url)
+                .finish()
+                .unwrap()
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(|err| Error::IpfsApiSendRequestError(err))
+        })
+        // TODO: Handle json error responses
+        .and_then(|res| {
+            // if res.status().is_success() {
+            Ok(HttpResponse::Ok().streaming(res.payload()))
+            // }
+            // else {
+            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+            // }
+        })
 }
 
-pub fn resolve<PF>(path: PF) -> impl Future<Item = Cid, Error = Error>
-where
-    PF: Future<Item = Path, Error = Error>,
-{
-    path.and_then(|path| {
-        ipfs_api_url().then(move |url| match url {
+pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
+    ipfs_api_url()
+        .then(move |url| match url {
             Ok(url) => {
                 debug!("Sending resolve request to {}", url);
                 let mut url = url.join("api/v0/resolve").unwrap();
@@ -180,31 +173,26 @@ where
             }
             Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
         })
-    })
-    .map(|url| client::get(url).finish().unwrap())
-    .and_then(|client| {
-        client
-            .send()
-            .timeout(Duration::from_secs(600))
-            .map_err(|err| Error::IpfsApiSendRequestError(err))
-            .and_then(|res| {
-                res.json()
-                    .map_err(|err| Error::IpfsApiJsonPayloadError(err))
-            })
-            .and_then(|res: Result<CidResponse>| match res {
-                Result::Ok(res) => Ok(res.cid),
-                Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-            })
-    })
+        .map(|url| client::get(url).finish().unwrap())
+        .and_then(|client| {
+            client
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .and_then(|res| {
+                    res.json()
+                        .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+                })
+                .and_then(|res: Result<CidResponse>| match res {
+                    Result::Ok(res) => Ok(res.cid),
+                    Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+                })
+        })
 }
 
-pub fn ls<PF>(path: PF) -> impl Future<Item = LsResponse, Error = Error>
-where
-    PF: Future<Item = Path, Error = Error>,
-{
+pub fn ls(path: Path) -> impl Future<Item = LsResponse, Error = Error> {
     ipfs_api_url()
-        .join(path)
-        .map(|(url, path)| {
+        .map(move |url| {
             let mut url = url.join("api/v0/ls").unwrap();
             url.query_pairs_mut().append_pair("arg", &path.to_string());
             debug!("Sending resolve request to {}", url);
@@ -226,27 +214,20 @@ where
         })
 }
 
-pub fn object_patch_link<CF1, CF2, CF3, BF>(
-    modify_multihash: CF1,
-    name: CF2,
-    add_multihash: CF3,
-    create: BF,
-) -> impl Future<Item = ObjectResponse, Error = Error>
-where
-    CF1: Future<Item = Cid, Error = Error>,
-    CF2: Future<Item = Cid, Error = Error>,
-    CF3: Future<Item = Cid, Error = Error>,
-    BF: Future<Item = bool, Error = Error>,
-{
+pub fn object_patch_link(
+    modify_cid: Cid,
+    name: String,
+    add_cid: Cid,
+    create: bool,
+) -> impl Future<Item = ObjectResponse, Error = Error> {
     ipfs_api_url()
-        .join5(modify_multihash, name, add_multihash, create)
-        .map(|(url, modify_multihash, name, add_multihash, create)| {
+        .map(move |url| {
             let mut url = url.join("api/v0/object/patch/add-link").unwrap();
             url.query_pairs_mut()
-                .append_pair("arg", &modify_multihash.to_string());
-            url.query_pairs_mut().append_pair("arg", &name.to_string());
+                .append_pair("arg", &modify_cid.to_string());
+            url.query_pairs_mut().append_pair("arg", &name);
             url.query_pairs_mut()
-                .append_pair("arg", &add_multihash.to_string());
+                .append_pair("arg", &add_cid.to_string());
             url.query_pairs_mut()
                 .append_pair("create", &create.to_string());
             debug!("Sending object patch link request to {}", url);
@@ -269,25 +250,19 @@ where
         })
 }
 
-pub fn name_publish<CF, KF>(cid: CF, key: KF) -> impl Future<Item = String, Error = Error>
-where
-    CF: Future<Item = Cid, Error = Error>,
-    KF: Future<Item = Key, Error = Error>,
-{
-    cid.join(key)
-        .and_then(|(cid, key)| {
-            debug!("Publishing with key {:?}", key);
-            ipfs_api_url().then(move |url| match url {
-                Ok(url) => {
-                    let mut url = url.join("api/v0/name/publish").unwrap();
-                    url.query_pairs_mut()
-                        .append_pair("arg", &format!("/ipfs/{}", cid))
-                        .append_pair("key", &key.name);
-                    debug!("Sending name publish request to {}", url);
-                    Ok(url)
-                }
-                Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&cid.to_string()).unwrap()),
-            })
+pub fn name_publish(cid: Cid, key: Key) -> impl Future<Item = String, Error = Error> {
+    debug!("Publishing with key {:?}", key);
+    ipfs_api_url()
+        .then(move |url| match url {
+            Ok(url) => {
+                let mut url = url.join("api/v0/name/publish").unwrap();
+                url.query_pairs_mut()
+                    .append_pair("arg", &format!("/ipfs/{}", cid))
+                    .append_pair("key", &key.name);
+                debug!("Sending name publish request to {}", url);
+                Ok(url)
+            }
+            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&cid.to_string()).unwrap()),
         })
         .map(|url| client::get(url).finish().unwrap())
         .and_then(|client| {
@@ -322,7 +297,7 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
             Result::Err(err) => {
                 error!("{:?}", err);
                 Err(Error::IpfsApiResponseError(err))
-            },
+            }
         })
 }
 
