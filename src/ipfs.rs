@@ -4,12 +4,11 @@ use actix_web::{
     HttpRequest, HttpResponse, Json,
 };
 use bytes::Bytes;
+use cid::Cid;
 use futures::prelude::*;
 use futures::{future, stream};
 use lazy_static::lazy_static;
-use multihash::{Hash, Multihash};
 use rand::{distributions::Alphanumeric, rngs::SmallRng, FromEntropy, Rng};
-use rust_base58::{FromBase58, ToBase58};
 use url::Url;
 
 use std::iter::FromIterator;
@@ -21,7 +20,7 @@ lazy_static! {
     static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
 
-pub fn sha256_to_multihash(sha256_str: &str) -> impl Future<Item = Vec<u8>, Error = Error> {
+pub fn sha256_to_cid(sha256_str: &str) -> impl Future<Item = Cid, Error = Error> {
     future::result(
         hex::decode(sha256_str)
             .ok()
@@ -29,7 +28,7 @@ pub fn sha256_to_multihash(sha256_str: &str) -> impl Future<Item = Vec<u8>, Erro
                 if digest.len() != 256 {
                     None
                 } else {
-                    multihash::encode(Hash::SHA2256, &digest).ok()
+                    Some(Cid::new(cid::Codec::Raw, cid::Version::V0, &digest))
                 }
             })
             .ok_or(Error::HashError),
@@ -63,7 +62,10 @@ fn multipart_end(boundary: &str) -> String {
     format!("\r\n--{}--\r\n", boundary)
 }
 
-pub fn parse_ipfs_path(prefix: Prefix, path_type: &str) -> impl Future<Item = IpfsPath, Error = Error> {
+pub fn parse_ipfs_path(
+    prefix: Prefix,
+    path_type: &str,
+) -> impl Future<Item = IpfsPath, Error = Error> {
     if let Some(path_type) = PathType::parse(path_type) {
         future::result(IpfsPath::parse(prefix, path_type).ok_or(Error::IpfsPathParseError))
     } else {
@@ -120,53 +122,49 @@ pub fn add(
         })
 }
 
-pub fn get<MF>(multihash: MF) -> impl Future<Item = HttpResponse, Error = Error>
+pub fn get<CF>(cid: CF) -> impl Future<Item = HttpResponse, Error = Error>
 where
-    MF: Future<Item = Vec<u8>, Error = Error>,
+    CF: Future<Item = Cid, Error = Error>,
 {
-    multihash
-        .and_then(|multihash| {
-            ipfs_api_url().then(move |url| match url {
-                Ok(url) => {
-                    let mut url = url.join("api/v0/get").unwrap();
-                    url.query_pairs_mut()
-                        .append_pair("arg", &format!("/ipfs/{}", multihash.to_base58()));
-                    Ok(url)
-                }
-                Err(_) => Ok(IPFS_PUBLIC_API_URL
-                    .clone()
-                    .join(&multihash.to_base58())
-                    .unwrap()),
-            })
-        })
-        .and_then(|url| {
-            client::get(url)
-                .finish()
-                .unwrap()
-                .send()
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
-        })
-        .and_then(|res| {
-            if res.status().is_success() {
-                Ok(HttpResponse::Ok().streaming(res.payload()))
-            } else {
-                Err(Error::IpfsApiResponseError(res.status()).into())
+    cid.and_then(|cid| {
+        ipfs_api_url().then(move |url| match url {
+            Ok(url) => {
+                let mut url = url.join("api/v0/get").unwrap();
+                url.query_pairs_mut()
+                    .append_pair("arg", &format!("/ipfs/{}", &cid.to_string()));
+                Ok(url)
             }
+            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&cid.to_string()).unwrap()),
         })
+    })
+    .and_then(|url| {
+        client::get(url)
+            .finish()
+            .unwrap()
+            .send()
+            .map_err(|err| Error::IpfsApiSendRequestError(err))
+    })
+    .and_then(|res| {
+        if res.status().is_success() {
+            Ok(HttpResponse::Ok().streaming(res.payload()))
+        } else {
+            Err(Error::IpfsApiResponseError(res.status()).into())
+        }
+    })
 }
 
-pub fn resolve<NF>(name: NF) -> impl Future<Item = String, Error = Error>
+pub fn resolve<PF>(path: PF) -> impl Future<Item = Cid, Error = Error>
 where
-    NF: Future<Item = String, Error = Error>,
+    PF: Future<Item = IpfsPath, Error = Error>,
 {
-    name.and_then(|name| {
+    path.and_then(|path| {
         ipfs_api_url().then(move |url| match url {
             Ok(url) => {
                 let mut url = url.join("api/v0/resolve").unwrap();
-                url.query_pairs_mut().append_pair("arg", &name);
+                url.query_pairs_mut().append_pair("arg", &path.to_string());
                 Ok(url)
             }
-            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&name).unwrap()),
+            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
         })
     })
     .map(|url| client::get(url).finish().unwrap())
@@ -181,8 +179,11 @@ where
                     Err(Error::IpfsApiResponseError(res.status()).into())
                 }
             })
-            .and_then(|res| res.body().map_err(|err| Error::IpfsApiPayloadError(err)))
-            .map(|bytes: Bytes| String::from_utf8_lossy(&bytes).to_string())
+            .and_then(|res| {
+                res.json()
+                    .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+            })
+            .map(|res: CidResponse| res.hash)
     })
 }
 
@@ -217,25 +218,29 @@ where
         })
 }
 
-pub fn object_patch_link<MF, NF, CF>(
-    modify_multihash: MF,
-    name: NF,
-    add_multihash: MF,
-    create: CF,
+pub fn object_patch_link<CF1, CF2, CF3, BF>(
+    modify_multihash: CF1,
+    name: CF2,
+    add_multihash: CF3,
+    create: BF,
 ) -> impl Future<Item = ObjectResponse, Error = Error>
 where
-    MF: Future<Item = String, Error = Error>,
-    NF: Future<Item = String, Error = Error>,
-    CF: Future<Item = bool, Error = Error>,
+    CF1: Future<Item = Cid, Error = Error>,
+    CF2: Future<Item = Cid, Error = Error>,
+    CF3: Future<Item = Cid, Error = Error>,
+    BF: Future<Item = bool, Error = Error>,
 {
     ipfs_api_url()
         .join5(modify_multihash, name, add_multihash, create)
         .map(|(url, modify_multihash, name, add_multihash, create)| {
             let mut url = url.join("api/v0/object/patch/add-link").unwrap();
-            url.query_pairs_mut().append_pair("arg", &modify_multihash);
-            url.query_pairs_mut().append_pair("arg", &name);
-            url.query_pairs_mut().append_pair("arg", &add_multihash);
-            url.query_pairs_mut().append_pair("create", &format!("{}", create));
+            url.query_pairs_mut()
+                .append_pair("arg", &modify_multihash.to_string());
+            url.query_pairs_mut().append_pair("arg", &name.to_string());
+            url.query_pairs_mut()
+                .append_pair("arg", &add_multihash.to_string());
+            url.query_pairs_mut()
+                .append_pair("create", &create.to_string());
 
             url
         })
@@ -258,26 +263,22 @@ where
         })
 }
 
-pub fn name_publish<MF, KF>(multihash: MF, key: KF) -> impl Future<Item = String, Error = Error>
+pub fn name_publish<CF, KF>(cid: CF, key: KF) -> impl Future<Item = String, Error = Error>
 where
-    MF: Future<Item = Vec<u8>, Error = Error>,
+    CF: Future<Item = Cid, Error = Error>,
     KF: Future<Item = Key, Error = Error>,
 {
-    multihash
-        .join(key)
-        .and_then(|(multihash, key)| {
+    cid.join(key)
+        .and_then(|(cid, key)| {
             ipfs_api_url().then(move |url| match url {
                 Ok(url) => {
                     let mut url = url.join("api/v0/name/publish").unwrap();
                     url.query_pairs_mut()
-                        .append_pair("arg", &format!("/ipfs/{}", multihash.to_base58()))
+                        .append_pair("arg", &format!("/ipfs/{}", cid))
                         .append_pair("key", &key.name);
                     Ok(url)
                 }
-                Err(_) => Ok(IPFS_PUBLIC_API_URL
-                    .clone()
-                    .join(&multihash.to_base58())
-                    .unwrap()),
+                Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&cid.to_string()).unwrap()),
             })
         })
         .map(|url| client::get(url).finish().unwrap())

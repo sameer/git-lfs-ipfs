@@ -23,6 +23,10 @@ pub enum Error {
     #[fail(display = "An error was encountered with a to the IPFS API")]
     IpfsApiResponseError(StatusCode),
     #[fail(
+        display = "An object upload is impossible with your current configuration. You must use IPNS and have the matching key available locally."
+    )]
+    IpfsUploadNotPossible,
+    #[fail(
         display = "The requested transfer is unavailable, only basic transfer is supported at this time"
     )]
     TransferUnavailable,
@@ -40,8 +44,11 @@ impl ResponseError for Error {
             Error::IpfsApiJsonPayloadError(json_payload_error) => {
                 json_payload_error.error_response()
             }
-            Error::IpfsApiSendRequestError(send_request_error) => send_request_error.error_response(),
+            Error::IpfsApiSendRequestError(send_request_error) => {
+                send_request_error.error_response()
+            }
             Error::IpfsApiResponseError(status) => HttpResponse::new(*status),
+            Error::IpfsUploadNotPossible => HttpResponse::new(StatusCode::UNPROCESSABLE_ENTITY),
             Error::TransferUnavailable => HttpResponse::new(StatusCode::NOT_IMPLEMENTED),
             Error::SerializeJsonError => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
         }

@@ -15,9 +15,7 @@ regex = "1.1"
 url = "1.7"
 url_serde = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
-multihash = "0.8"
 multiaddr = "0.3.1"
-rust-base58 = "0.0.4"
 dirs = "1.0"
 futures = "0.1.25"
 failure = "0.1"
@@ -25,7 +23,7 @@ mime = "0.3"
 env_logger = "0.6"
 rand = "0.6"
 bytes = "0.4"
-cid = "0.3"
+cid = { git = "https://github.com/sameer/rust-cid", version = "0.3" }
 hex = "0.3"
 publicsuffix = "1.5"
 

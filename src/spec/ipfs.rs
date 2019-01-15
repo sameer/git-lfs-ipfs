@@ -1,3 +1,4 @@
+use cid::Cid;
 use lazy_static::lazy_static;
 use serde_derive::Deserialize;
 
@@ -9,7 +10,8 @@ pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA
 #[serde(rename_all = "PascalCase")]
 pub struct AddResponse {
     pub name: String,
-    pub hash: String,
+    #[serde(with = "string")]
+    pub hash: Cid,
     pub size: String,
 }
 
@@ -23,7 +25,8 @@ pub struct KeyListResponse {
 #[serde(rename_all = "PascalCase")]
 pub struct Key {
     pub name: String,
-    pub id: String,
+    #[serde(with = "string")]
+    pub id: Cid,
 }
 
 #[derive(Deserialize)]
@@ -35,7 +38,8 @@ pub struct LsResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Object {
-    pub hash: String,
+    #[serde(with = "string")]
+    pub hash: Cid,
     pub links: Vec<Link>,
 }
 
@@ -50,9 +54,17 @@ pub struct ObjectResponse {
 #[serde(rename_all = "PascalCase")]
 pub struct Link {
     pub name: String,
-    pub hash: String,
+    #[serde(with = "string")]
+    pub hash: Cid,
     pub size: String,
     pub Type: String, // Not sure how to handle this
+}
+
+#[derive(Deserialize)]
+#[serde(transparent)]
+pub struct CidResponse {
+    #[serde(with = "string")]
+    pub hash: Cid,
 }
 
 #[derive(Deserialize)]
@@ -80,6 +92,7 @@ impl Display for Prefix {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub enum PathType {
     Cid(cid::Cid),
     DnsLink(publicsuffix::Domain),
@@ -159,5 +172,30 @@ mod test {
                 IpfsPath::parse(Prefix::Ipfs, PathType::parse(EMPTY_FOLDER_HASH).unwrap()).unwrap()
             )
         );
+    }
+}
+
+mod string {
+    use std::fmt::Display;
+
+    use cid::Cid;
+
+    use serde::{de, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: Display,
+        S: Serializer,
+    {
+        serializer.collect_str(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Cid, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer)?
+            .parse()
+            .map_err(de::Error::custom)
     }
 }
