@@ -54,13 +54,13 @@ pub struct Key {
     pub id: Cid,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct LsResponse {
     pub objects: Vec<Object>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Object {
     #[serde(with = "string")]
@@ -74,7 +74,7 @@ pub struct ObjectResponse {
     pub object: Object,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Link {
     pub name: String,

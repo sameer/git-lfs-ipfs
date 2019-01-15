@@ -121,39 +121,12 @@ impl ObjectError {
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
-pub struct Actions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    download: Option<Action>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    upload: Option<Action>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    verify: Option<Action>,
-}
-
-impl Actions {
-    pub fn download(download: Action) -> Self {
-        Self {
-            download: Some(download),
-            upload: None,
-            verify: None,
-        }
-    }
-
-    pub fn upload_and_verify(upload: Action, verify: Action) -> Self {
-        Self {
-            download: None,
-            upload: Some(upload),
-            verify: Some(verify),
-        }
-    }
-
-    pub fn upload(upload: Action) -> Self {
-        Self {
-            download: None,
-            upload: Some(upload),
-            verify: None,
-        }
-    }
+#[serde(untagged)]
+pub enum Actions {
+    Download { download: Action },
+    None,
+    Upload { upload: Action },
+    UploadAndVerify { upload: Action, verify: Action },
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -238,7 +211,7 @@ mod test {
                         size: 123,
                     },
                     authenticated: Some(true),
-                    actions: Actions {
+                    actions: Actions::Download {
                         download: Action {
                             href: Url::parse("https://some-download.com").unwrap(),
                             header: Some(
@@ -252,9 +225,6 @@ mod test {
                                 .unwrap()
                                 .into()
                         }
-                        .into(),
-                        upload: None,
-                        verify: None,
                     }
                 }],
             })
