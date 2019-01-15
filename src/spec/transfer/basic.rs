@@ -4,7 +4,7 @@ use crate::spec::Object;
 
 /// See https://github.com/git-lfs/git-lfs/blob/master/docs/api/basic-transfers.md
 #[derive(PartialEq, Eq, Debug, Deserialize)]
+#[serde(transparent)]
 pub struct VerifyRequest {
-    #[serde(flatten)]
     pub object: Object,
 }

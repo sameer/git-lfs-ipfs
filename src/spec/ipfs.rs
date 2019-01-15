@@ -1,10 +1,36 @@
 use cid::Cid;
 use lazy_static::lazy_static;
-use serde_derive::Deserialize;
+use serde_derive::{Deserialize, Serialize};
 
 use std::fmt::Display;
+use std::path::PathBuf;
 
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(untagged)]
+pub enum Result<T> {
+    Ok(T),
+    Err(Error),
+}
+
+impl<T> Into<std::result::Result<T, Error>> for Result<T> {
+    fn into(self) -> std::result::Result<T, Error> {
+        match self {
+            Result::Ok(t) => Ok(t),
+            Result::Err(err) => Err(err),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Error {
+    message: String,
+    code: u64,
+    Type: String,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -15,13 +41,13 @@ pub struct AddResponse {
     pub size: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct KeyListResponse {
     pub keys: Vec<Key>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Key {
     pub name: String,
@@ -44,9 +70,8 @@ pub struct Object {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", transparent)]
 pub struct ObjectResponse {
-    #[serde(flatten)]
     pub object: Object,
 }
 
@@ -56,18 +81,27 @@ pub struct Link {
     pub name: String,
     #[serde(with = "string")]
     pub hash: Cid,
-    pub size: String,
-    pub Type: String, // Not sure how to handle this
+    pub size: u64,
+    pub Type: i32, // Not sure how to handle this
 }
 
 #[derive(Deserialize)]
 #[serde(transparent)]
 pub struct CidResponse {
     #[serde(with = "string")]
-    pub hash: Cid,
+    pub cid: Cid,
 }
 
-#[derive(Deserialize)]
+// #[derive(Deserialize)]
+// #[serde(rename_all = "PascalCase")]
+// pub enum PathResponse {
+//     Success{
+//         path: Path,
+//     },
+//     Error(Error),
+// }
+
+#[derive(Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Prefix {
     Ipfs,
@@ -93,16 +127,16 @@ impl Display for Prefix {
 }
 
 #[derive(PartialEq, Eq)]
-pub enum PathType {
+pub enum Root {
     Cid(cid::Cid),
     DnsLink(publicsuffix::Domain),
 }
 
-impl Display for PathType {
+impl Display for Root {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PathType::Cid(cid) => write!(f, "{}", cid),
-            PathType::DnsLink(domain) => write!(f, "{}", domain),
+            Root::Cid(cid) => write!(f, "{}", cid),
+            Root::DnsLink(domain) => write!(f, "{}", domain),
         }
     }
 }
@@ -111,32 +145,39 @@ lazy_static! {
     static ref public_suffix_list: publicsuffix::List = publicsuffix::List::fetch().unwrap();
 }
 
-impl PathType {
+impl Root {
     pub fn parse(input: &str) -> Option<Self> {
         use cid::ToCid;
         if let Ok(cid) = input.to_cid() {
-            Some(PathType::Cid(cid))
+            Some(Root::Cid(cid))
         } else if let Ok(dns_link) = public_suffix_list.parse_domain(input) {
-            Some(PathType::DnsLink(dns_link))
+            Some(Root::DnsLink(dns_link))
         } else {
             None
         }
     }
 }
 
-pub struct IpfsPath {
+pub struct Path {
     pub prefix: Prefix,
-    pub path_type: PathType,
+    pub root: Root,
+    pub suffix: Option<PathBuf>,
 }
 
-impl IpfsPath {
-    pub fn parse(prefix: Prefix, path_type: PathType) -> Option<Self> {
+impl Path {
+    pub fn parse(prefix: Prefix, root: Root, suffix: Option<PathBuf>) -> Option<Self> {
         if prefix.is_dnslink_allowed() {
-            Self { prefix, path_type }.into()
-        } else if let PathType::Cid(cid) = path_type {
             Self {
                 prefix,
-                path_type: PathType::Cid(cid),
+                root,
+                suffix,
+            }
+            .into()
+        } else if let Root::Cid(cid) = root {
+            Self {
+                prefix,
+                root: Root::Cid(cid),
+                suffix,
             }
             .into()
         } else {
@@ -145,9 +186,16 @@ impl IpfsPath {
     }
 }
 
-impl Display for IpfsPath {
+impl Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "/{}/{}", self.prefix, self.path_type)
+        use std::path::PathBuf;
+        let mut buf = PathBuf::from("/");
+        buf.push(self.prefix.to_string());
+        buf.push(self.root.to_string());
+        if let Some(suffix) = &self.suffix {
+            buf.push(suffix);
+        }
+        write!(f, "{}", buf.display())
     }
 }
 
@@ -158,18 +206,15 @@ mod test {
     fn ipfs_path_correct() {
         assert_eq!(
             EMPTY_FOLDER_HASH,
-            format!("{}", PathType::parse(EMPTY_FOLDER_HASH).unwrap())
+            format!("{}", Root::parse(EMPTY_FOLDER_HASH).unwrap())
         );
-        assert_eq!(
-            "ipfs.io",
-            format!("{}", PathType::parse("ipfs.io").unwrap())
-        );
+        assert_eq!("ipfs.io", format!("{}", Root::parse("ipfs.io").unwrap()));
         let path_string = format!("/ipfs/{}", EMPTY_FOLDER_HASH);
         assert_eq!(
             path_string,
             format!(
                 "{}",
-                IpfsPath::parse(Prefix::Ipfs, PathType::parse(EMPTY_FOLDER_HASH).unwrap()).unwrap()
+                Path::parse(Prefix::Ipfs, Root::parse(EMPTY_FOLDER_HASH).unwrap(), None).unwrap()
             )
         );
     }
