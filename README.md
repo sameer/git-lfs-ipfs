@@ -6,9 +6,13 @@ git-lfs server and custom transfer implementations in Rust using IPFS for storag
 
 [![Coverage Status](https://coveralls.io/repos/github/sameer/git-lfs-ipfs/badge.svg?branch=master)](https://coveralls.io/github/sameer/git-lfs-ipfs?branch=master)
 
-## Workflow
+## Download Workflow
 
-### Solely IPFS (download only)
+Same for all types -- the server will transmit objects to git-lfs.
+
+## Upload Workflow
+
+### Solely IPFS (not possible right now)
 
 #### First time
 
@@ -33,7 +37,7 @@ git commit -m "Update git lfs URL"
 git push origin master
 ```
 
-### With IPNS publish (upload if key available & download)
+### With IPNS publish (if key available)
 
 #### First time
 
@@ -57,7 +61,7 @@ git push origin master
 # else only download can be done
 ```
 
-### DNSLINK (download only)
+### DNSLINK (not possible right now)
 
 #### First time
 
@@ -82,7 +86,7 @@ git commit -m "Update git lfs URL"
 git push origin master
 ```
 
-## Behind the Scenes
+## Behind the Scenes (CLI equivalent)
 
 ### Upload
 
@@ -94,6 +98,8 @@ ipfs name publish QmNewHash --key=QmPeerId
 ```
 
 ### Verify
+
+While the step is optional in the LFS protocol, it helps ensure that uploading the object did actually work for an IPNS publish.
 
 ```bash
 ipfs ls /ipns/QmPeerId --> <unixfs links list>
