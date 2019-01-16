@@ -14,9 +14,9 @@ git-lfs server and custom transfer implementations in Rust using IPFS for storag
 
 ```bash
 # Do your git stuff
-# Use http://localhost:5002/ipfs/QmEmptyFolderHash as the LFS server for the first time
+# Use http://localhost:5002/ipfs/QmEmptyFolderHash as the LFS server
 git lfs push
-# Manually update url to http://localhost:5002/ipfs/QmNewHash
+# Manually update LFS server url to http://localhost:5002/ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
 git add .lfsconfig
 git commit -m "Update git lfs URL"
 git push origin master
@@ -26,15 +26,14 @@ git push origin master
 
 ```bash
 # Do your git stuff
-# Use http://localhost:5002/ipfs/QmCurrentHash as the LFS server for the first time
 git lfs push
-# Manually update url to http://localhost:5002/ipfs/QmNewHash
+# Manually update LFS server url to http://localhost:5002/ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
 git add .lfsconfig
 git commit -m "Update git lfs URL"
 git push origin master
 ```
 
-### With IPNS publish (download only)
+### With IPNS publish (upload if key available & download)
 
 #### First time
 
@@ -42,25 +41,45 @@ git push origin master
 # Make a key for the first time
 ipfs gen key myrepokey --type=rsa
 ipfs name publish QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn --key=myrepokey
+# Do your git stuff
+# Use http://localhost:5002/ipns/QmPeerId as the LFS server
+git add .lfsconfig
+git commit -m "Update git lfs URL"
+git push origin master
 ```
 
 #### Subsequently
 
 ```bash
 # Do your git stuff
-# Use http://localhost:5002/ipns/QmIpnsPeerId as the LFS server
 git push origin master
 # The ipns key, if available locally, will be used to update the hash
 # else only download can be done
 ```
 
-### With DNSLink (download only)
+### DNSLINK (download only)
+
+#### First time
 
 ```bash
-# Do your git lfs stuff
-# Use http://localhost:5002/ipns/mysite.com as the LFS server
+# Do your git stuff
+# Use http://localhost:5002/ipns/mysite.com as the LFS server for the first time
+git lfs push
+# Manually update DNSLINK record to /ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
+git add .lfsconfig
+git commit -m "Update git lfs URL"
 git push origin master
-# Manually update DNSLink record to /ipfs/QmNewHash
+```
+
+#### Subsequently
+
+```bash
+# Do your git stuff
+git lfs push
+# Manually update DNSLINK record to /ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
+git add .lfsconfig
+git commit -m "Update git lfs URL"
+git push origin master
 ```
 
 ## Behind the Scenes
