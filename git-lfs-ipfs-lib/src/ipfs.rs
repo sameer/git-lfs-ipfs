@@ -12,6 +12,7 @@ use rand::{distributions::Alphanumeric, rngs::SmallRng, FromEntropy, Rng};
 use url::Url;
 
 use std::iter::FromIterator;
+use std::str::FromStr;
 use std::time::Duration;
 
 use crate::error::Error;
@@ -71,11 +72,9 @@ pub fn parse_ipfs_path<I>(
 where
     I: Into<Option<std::path::PathBuf>>,
 {
-    if let Some(root) = Root::parse(root) {
-        future::result(Path::parse(prefix, root, suffix.into()).ok_or(Error::IpfsPathParseError))
-    } else {
-        future::err(Error::IpfsPathParseError)
-    }
+    future::result(Root::from_str(root).and_then(|root| {
+        Path::parse(prefix, root, suffix.into()).ok_or(Error::IpfsPathParseError("Parse failed"))
+    }))
 }
 
 // req.headers()
@@ -126,10 +125,10 @@ pub fn add(
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        .and_then(|res: Result<AddResponse>| match res {
-            Result::Ok(res) => Ok(res),
-            Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-        })
+        // .and_then(|res: Result<AddResponse>| match res {
+        //     Result::Ok(res) => Ok(res),
+        //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+        // })
 }
 
 pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
@@ -210,9 +209,9 @@ pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
             Ok(url) => {
-                debug!("Sending resolve request to {}", url);
                 let mut url = url.join("api/v0/resolve").unwrap();
                 url.query_pairs_mut().append_pair("arg", &path.to_string());
+                debug!("Sending resolve request to {}", url);
                 Ok(url)
             }
             Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
@@ -224,12 +223,18 @@ pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
                 .timeout(Duration::from_secs(600))
                 .map_err(|err| Error::IpfsApiSendRequestError(err))
                 .and_then(|res| {
-                    res.json()
-                        .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+                    res.json().map_err(|err| {
+                        error!("{:?}", err);
+                        Error::IpfsApiJsonPayloadError(err)
+                    })
                 })
-                .and_then(|res: Result<CidResponse>| match res {
-                    Result::Ok(res) => Ok(res.cid),
-                    Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+                // .and_then(|res: Result<ResolveResponse>| match res {
+                //     Result::Ok(res) => Ok(res),
+                //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+                // })
+                .and_then(|res: ResolveResponse| match res.path.root {
+                    Root::Cid(cid) => Ok(cid),
+                    Root::DnsLink(_link) => Err(Error::IpfsPathParseError("Expected CID")),
                 })
         })
 }
@@ -239,23 +244,24 @@ pub fn ls(path: Path) -> impl Future<Item = LsResponse, Error = Error> {
         .map(move |url| {
             let mut url = url.join("api/v0/ls").unwrap();
             url.query_pairs_mut().append_pair("arg", &path.to_string());
-            debug!("Sending resolve request to {}", url);
+            debug!("Sending ls request to {}", url);
             url
         })
         .map(|url| client::get(url).finish().unwrap())
         .and_then(|client| {
             client
                 .send()
+                .timeout(Duration::from_secs(600))
                 .map_err(|err| Error::IpfsApiSendRequestError(err))
         })
         .and_then(|res| {
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        .and_then(|res: Result<LsResponse>| match res {
-            Result::Ok(res) => Ok(res),
-            Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-        })
+    // .and_then(|res: Result<LsResponse>| match res {
+    //     Result::Ok(res) => Ok(res),
+    //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+    // })
 }
 
 pub fn object_patch_link(
@@ -288,10 +294,10 @@ pub fn object_patch_link(
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        .and_then(|res: Result<ObjectResponse>| match res {
-            Result::Ok(res) => Ok(res),
-            Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-        })
+        // .and_then(|res: Result<ObjectResponse>| match res {
+        //     Result::Ok(res) => Ok(res),
+        //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+        // })
 }
 
 pub fn name_publish(cid: Cid, key: Key) -> impl Future<Item = String, Error = Error> {
@@ -336,13 +342,13 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        .and_then(|res: Result<KeyListResponse>| match res {
-            Result::Ok(res) => Ok(res),
-            Result::Err(err) => {
-                error!("{:?}", err);
-                Err(Error::IpfsApiResponseError(err))
-            }
-        })
+        // .and_then(|res: Result<KeyListResponse>| match res {
+        //     Result::Ok(res) => Ok(res),
+        //     Result::Err(err) => {
+        //         error!("{:?}", err);
+        //         Err(Error::IpfsApiResponseError(err))
+        //     }
+        // })
 }
 
 pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> {

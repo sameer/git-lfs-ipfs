@@ -65,5 +65,8 @@ fn main() {
     })
     .bind("127.0.0.1:5002")
     .unwrap()
+    .bind("::1:5002")
+    .unwrap()
+    .workers(1)
     .run();
 }

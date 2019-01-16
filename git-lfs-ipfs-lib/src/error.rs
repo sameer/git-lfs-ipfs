@@ -13,7 +13,7 @@ pub enum Error {
     )]
     LocalApiUnavailableError,
     #[fail(display = "An error was encountered in parsing an IPFS path")]
-    IpfsPathParseError,
+    IpfsPathParseError(&'static str),
     #[fail(display = "An error was encountered in receiving a response from the IPFS API")]
     IpfsApiPayloadError(PayloadError),
     #[fail(display = "An error was encountered in receiving a JSON response from the IPFS API")]
@@ -41,7 +41,7 @@ impl ResponseError for Error {
         match self {
             Error::HashError => HttpResponse::BadRequest().finish(),
             Error::LocalApiUnavailableError => HttpResponse::new(StatusCode::UNPROCESSABLE_ENTITY),
-            Error::IpfsPathParseError => HttpResponse::BadRequest().finish(),
+            Error::IpfsPathParseError(_) => HttpResponse::BadRequest().finish(),
             Error::IpfsApiPayloadError(payload_error) => payload_error.error_response(),
             Error::IpfsApiJsonPayloadError(json_payload_error) => {
                 json_payload_error.error_response()

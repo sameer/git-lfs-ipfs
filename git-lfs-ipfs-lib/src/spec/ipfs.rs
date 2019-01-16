@@ -1,9 +1,11 @@
 use cid::Cid;
 use lazy_static::lazy_static;
+use serde::Deserialize;
 use serde_derive::{Deserialize, Serialize};
 
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
@@ -57,21 +59,30 @@ pub struct Key {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct LsResponse {
-    pub objects: Vec<Object>,
+    pub objects: Vec<ObjectPath>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Object {
+pub struct ObjectCid {
     #[serde(with = "string")]
     pub hash: Cid,
     pub links: Vec<Link>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ObjectPath {
+    #[serde(with = "string")]
+    pub hash: Path,
+    pub links: Vec<Link>,
+}
+
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase", transparent)]
+#[serde(rename_all = "PascalCase")]
 pub struct ObjectResponse {
-    pub object: Object,
+    #[serde(with = "string")]
+    pub hash: Cid,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,26 +96,30 @@ pub struct Link {
 }
 
 #[derive(Deserialize)]
-#[serde(transparent)]
-pub struct CidResponse {
+#[serde(rename_all = "PascalCase")]
+pub struct ResolveResponse {
     #[serde(with = "string")]
-    pub cid: Cid,
+    pub path: Path,
 }
 
-// #[derive(Deserialize)]
-// #[serde(rename_all = "PascalCase")]
-// pub enum PathResponse {
-//     Success{
-//         path: Path,
-//     },
-//     Error(Error),
-// }
-
-#[derive(Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Prefix {
     Ipfs,
     Ipns,
+}
+
+impl FromStr for Prefix {
+    type Err = crate::error::Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "ipfs" => Ok(Prefix::Ipfs),
+            "ipns" => Ok(Prefix::Ipns),
+            _ => Err(crate::error::Error::IpfsPathParseError(
+                "Prefix was neither ipfs nor ipns",
+            )),
+        }
+    }
 }
 
 impl Prefix {
@@ -125,7 +140,7 @@ impl Display for Prefix {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Root {
     Cid(cid::Cid),
     DnsLink(publicsuffix::Domain),
@@ -144,19 +159,23 @@ lazy_static! {
     static ref public_suffix_list: publicsuffix::List = publicsuffix::List::fetch().unwrap();
 }
 
-impl Root {
-    pub fn parse(input: &str) -> Option<Self> {
+impl FromStr for Root {
+    type Err = crate::error::Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         use cid::ToCid;
-        if let Ok(cid) = input.to_cid() {
-            Some(Root::Cid(cid))
-        } else if let Ok(dns_link) = public_suffix_list.parse_domain(input) {
-            Some(Root::DnsLink(dns_link))
+        if let Ok(cid) = s.to_cid() {
+            Ok(Root::Cid(cid))
+        } else if let Ok(dns_link) = public_suffix_list.parse_domain(s) {
+            Ok(Root::DnsLink(dns_link))
         } else {
-            None
+            Err(crate::error::Error::IpfsPathParseError(
+                "Root was neither a CID nor DNS record",
+            ))
         }
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Path {
     pub prefix: Prefix,
     pub root: Root,
@@ -187,14 +206,43 @@ impl Path {
 
 impl Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use std::path::PathBuf;
-        let mut buf = PathBuf::from("/");
-        buf.push(self.prefix.to_string());
-        buf.push(self.root.to_string());
-        if let Some(suffix) = &self.suffix {
-            buf.push(suffix);
+        write!(f, "/{}/{}", self.prefix, self.root).and_then(|x| {
+            if let Some(suffix) = &self.suffix {
+                write!(f, "/{}", suffix.display())
+            } else {
+                Ok(x)
+            }
+        })
+    }
+}
+
+impl FromStr for Path {
+    type Err = crate::error::Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let mut it = s.split('/').into_iter();
+        it.next();
+        let prefix = it.next();
+        let root = it.next();
+        let suffix: Option<String> =
+            Some(it.collect()).and_then(|s: String| if s.len() != 0 { Some(s) } else { None });
+        if let (Some(prefix), Some(root)) = (prefix, root) {
+            if let (Ok(prefix), Ok(root)) = (Prefix::from_str(prefix), Root::from_str(root)) {
+                Self::parse(
+                    prefix,
+                    root,
+                    suffix.and_then(|suffix| PathBuf::from_str(&suffix).ok()),
+                )
+                .ok_or(crate::error::Error::IpfsPathParseError("Parse failed"))
+            } else {
+                Err(crate::error::Error::IpfsPathParseError(
+                    "Prefix and root failed",
+                ))
+            }
+        } else {
+            Err(crate::error::Error::IpfsPathParseError(
+                "No prefix or root possible",
+            ))
         }
-        write!(f, "{}", buf.display())
     }
 }
 
@@ -205,24 +253,20 @@ mod test {
     fn ipfs_path_correct() {
         assert_eq!(
             EMPTY_FOLDER_HASH,
-            format!("{}", Root::parse(EMPTY_FOLDER_HASH).unwrap())
+            format!("{}", Root::from_str(EMPTY_FOLDER_HASH).unwrap())
         );
-        assert_eq!("ipfs.io", format!("{}", Root::parse("ipfs.io").unwrap()));
+        assert_eq!("ipfs.io", format!("{}", Root::from_str("ipfs.io").unwrap()));
         let path_string = format!("/ipfs/{}", EMPTY_FOLDER_HASH);
         assert_eq!(
             path_string,
-            format!(
-                "{}",
-                Path::parse(Prefix::Ipfs, Root::parse(EMPTY_FOLDER_HASH).unwrap(), None).unwrap()
-            )
+            format!("{}", Path::from_str(&path_string).unwrap())
         );
     }
 }
 
 mod string {
     use std::fmt::Display;
-
-    use cid::Cid;
+    use std::str::FromStr;
 
     use serde::{de, Deserialize, Deserializer, Serializer};
 
@@ -234,9 +278,11 @@ mod string {
         serializer.collect_str(value)
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Cid, D::Error>
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
+        T: FromStr,
+        T::Err: Display,
     {
         String::deserialize(deserializer)?
             .parse()

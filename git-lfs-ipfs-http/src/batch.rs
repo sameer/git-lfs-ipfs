@@ -94,6 +94,7 @@ pub fn endpoint<'a>(
                         ))
                     })
                     .collect();
+                debug!("Checked objects");
                 objects
             })
             .and_then(|objects| {
