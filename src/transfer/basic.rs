@@ -68,7 +68,7 @@ pub fn download_object(path: Path<(Prefix, String, String)>) -> ActixFutureRepon
     let oid = path.2;
     Box::new(
         ipfs::parse_ipfs_path(prefix, &root, PathBuf::from(oid))
-            .and_then(|path| ipfs::get(path))
+            .and_then(|path| ipfs::cat(path))
             .map_err(actix_web::error::Error::from),
     )
 }

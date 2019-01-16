@@ -1,7 +1,7 @@
 use actix_web::dev::Payload;
 use actix_web::{
-    client, http::header, AsyncResponder, FutureResponse as ActixFutureReponse, HttpMessage,
-    HttpRequest, HttpResponse, Json,
+    client, dev::HttpResponseBuilder, http::header, AsyncResponder,
+    FutureResponse as ActixFutureReponse, HttpMessage, HttpRequest, HttpResponse, Json,
 };
 use bytes::Bytes;
 use cid::Cid;
@@ -134,13 +134,13 @@ pub fn add(
 
 pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
     ipfs_api_url()
-        .then(move |url| match url {
-            Ok(url) => {
+        .map(move |url|{
                 let mut url = url.join("api/v0/get").unwrap();
-                url.query_pairs_mut().append_pair("arg", &path.to_string());
-                Ok(url)
-            }
-            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
+                url.query_pairs_mut()
+                    .append_pair("arg", &path.to_string())
+                    .append_pair("archive", "true")
+                    .append_pair("compress", "false");
+                url
         })
         .and_then(|url| {
             debug!("Sending get request to {}", url);
@@ -154,7 +154,52 @@ pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         // TODO: Handle json error responses
         .and_then(|res| {
             // if res.status().is_success() {
-            Ok(HttpResponse::Ok().streaming(res.payload()))
+            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+            res.headers()
+                .iter()
+                .filter(|(h, _)| *h != "connection")
+                .for_each(|(k, v)| {
+                    proxy_res.header(k.clone(), v.clone());
+                });
+            Ok(proxy_res.streaming(res.payload()))
+            // }
+            // else {
+            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+            // }
+        })
+}
+
+pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
+    ipfs_api_url()
+        .then(move |url| match url {
+            Ok(url) => {
+                let mut url = url.join("api/v0/cat").unwrap();
+                url.query_pairs_mut()
+                    .append_pair("arg", &path.to_string());
+                Ok(url)
+            }
+            Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),
+        })
+        .and_then(|url| {
+            debug!("Sending cat request to {}", url);
+            client::get(url)
+                .finish()
+                .unwrap()
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(|err| Error::IpfsApiSendRequestError(err))
+        })
+        // TODO: Handle json error responses
+        .and_then(|res| {
+            // if res.status().is_success() {
+            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+            res.headers()
+                .iter()
+                .filter(|(h, _)| *h != "connection")
+                .for_each(|(k, v)| {
+                    proxy_res.header(k.clone(), v.clone());
+                });
+            Ok(proxy_res.streaming(res.payload()))
             // }
             // else {
             //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
@@ -301,7 +346,7 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
         })
 }
 
-fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> {
+pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> {
     use multiaddr::{AddrComponent, ToMultiaddr};
     use std::fs;
     use std::net::IpAddr;
