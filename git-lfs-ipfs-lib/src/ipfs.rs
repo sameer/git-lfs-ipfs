@@ -134,13 +134,13 @@ pub fn add(
 
 pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
     ipfs_api_url()
-        .map(move |url|{
-                let mut url = url.join("api/v0/get").unwrap();
-                url.query_pairs_mut()
-                    .append_pair("arg", &path.to_string())
-                    .append_pair("archive", "true")
-                    .append_pair("compress", "false");
-                url
+        .map(move |url| {
+            let mut url = url.join("api/v0/get").unwrap();
+            url.query_pairs_mut()
+                .append_pair("arg", &path.to_string())
+                .append_pair("archive", "true")
+                .append_pair("compress", "false");
+            url
         })
         .and_then(|url| {
             debug!("Sending get request to {}", url);
@@ -174,8 +174,7 @@ pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         .then(move |url| match url {
             Ok(url) => {
                 let mut url = url.join("api/v0/cat").unwrap();
-                url.query_pairs_mut()
-                    .append_pair("arg", &path.to_string());
+                url.query_pairs_mut().append_pair("arg", &path.to_string());
                 Ok(url)
             }
             Err(_) => Ok(IPFS_PUBLIC_API_URL.clone().join(&path.to_string()).unwrap()),

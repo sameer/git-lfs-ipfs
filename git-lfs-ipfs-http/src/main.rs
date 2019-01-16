@@ -17,16 +17,16 @@ extern crate url_serde;
 #[macro_use]
 extern crate log;
 
+extern crate git_lfs_ipfs_lib;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
 use actix_web::{http::header, middleware::Logger, pred, App};
+use git_lfs_ipfs_lib::*;
 
 mod batch;
-mod error;
-mod ipfs;
-mod spec;
 mod transfer;
 
 fn main() {
