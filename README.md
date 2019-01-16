@@ -1,6 +1,6 @@
 # git-lfs-ipfs
 
-A git-lfs server implementation in Rust using IPFS for storage.
+git-lfs server and custom transfer implementations in Rust using IPFS for storage.
 
 [![Build Status](https://travis-ci.org/sameer/git-lfs-ipfs.svg?branch=master)](https://travis-ci.org/sameer/git-lfs-ipfs)
 
