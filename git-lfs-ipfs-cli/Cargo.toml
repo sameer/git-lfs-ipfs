@@ -1,7 +1,33 @@
 [package]
 name = "git-lfs-ipfs-cli"
 version = "0.1.0"
-authors = ["Sameer Puri <sameer@users.noreply.github.com>"]
+authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
+actix-web = { version = "0.7", default-features = false, features = ["cell"] }
+actix = "0.7"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+lazy_static = "1.2"
+regex = "1.1"
+url = "1.7"
+url_serde = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
+multiaddr = "0.3.1"
+dirs = "1.0"
+futures = "0.1.25"
+failure = "0.1"
+mime = "0.3"
+env_logger = "0.6"
+rand = "0.6"
+bytes = "0.4"
+cid = { git = "https://github.com/sameer/rust-cid", version = "0.3" }
+hex = "0.3"
+publicsuffix = "1.5"
+log = "0.4"
+git-lfs-ipfs-lib = { path = "../git-lfs-ipfs-lib", version = "0.1" }
+
+[dev-dependencies]
+pretty_assertions = "0.5"

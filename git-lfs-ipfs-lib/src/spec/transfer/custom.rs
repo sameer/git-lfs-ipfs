@@ -1,10 +1,7 @@
 use serde_derive::{Deserialize, Serialize};
-use url::Url;
 
 use crate::spec::ipfs::{string, Path};
 use crate::spec::Object;
-
-use std::str::FromStr;
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -67,6 +64,8 @@ pub struct Error {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::str::FromStr;
+
     #[test]
     fn custom_complete_serializes_correctly() {
         assert_eq!(
