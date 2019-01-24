@@ -264,7 +264,9 @@ mod test {
     }
 }
 
-mod string {
+
+// TODO: Refactor to implement serialize for IpfsPath
+pub mod string {
     use std::fmt::Display;
     use std::str::FromStr;
 
