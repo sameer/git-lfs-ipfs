@@ -9,6 +9,10 @@ use std::str::FromStr;
 
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
+lazy_static! {
+    pub static ref EMPTY_FOLDER_PATH: Path = Path::from_str("/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn").unwrap();
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum Result<T> {
@@ -140,7 +144,7 @@ impl Display for Prefix {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Root {
     Cid(cid::Cid),
     DnsLink(publicsuffix::Domain),
@@ -175,7 +179,7 @@ impl FromStr for Root {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Path {
     pub prefix: Prefix,
     pub root: Root,
