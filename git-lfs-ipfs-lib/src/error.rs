@@ -12,15 +12,24 @@ pub enum Error {
         display = "A local IPFS API could not be found, and the public API cannot support this functionality"
     )]
     LocalApiUnavailableError,
-    #[fail(display = "An error was encountered in parsing an IPFS path")]
+    #[fail(display = "An error was encountered in parsing an IPFS path {}", _0)]
     IpfsPathParseError(&'static str),
-    #[fail(display = "An error was encountered in receiving a response from the IPFS API")]
+    #[fail(
+        display = "An error was encountered in receiving a response from the IPFS API {:?}",
+        _0
+    )]
     IpfsApiPayloadError(PayloadError),
-    #[fail(display = "An error was encountered in receiving a JSON response from the IPFS API")]
+    #[fail(
+        display = "An error was encountered in receiving a JSON response from the IPFS API {:?}",
+        _0
+    )]
     IpfsApiJsonPayloadError(JsonPayloadError),
-    #[fail(display = "An error was encountered while sending a request to the IPFS API")]
+    #[fail(
+        display = "An error was encountered while sending a request to the IPFS API {:?}",
+        _0
+    )]
     IpfsApiSendRequestError(SendRequestError),
-    #[fail(display = "An error was received from the IPFS API")]
+    #[fail(display = "An error was received from the IPFS API {:?}", _0)]
     IpfsApiResponseError(crate::spec::ipfs::Error),
     #[fail(
         display = "An object upload is impossible with your current configuration. You must use IPNS and have the matching key available locally."
@@ -34,6 +43,8 @@ pub enum Error {
     VerifyFailed,
     #[fail(display = "An internal server error occurred while serializing data to a json.")]
     SerializeJsonError,
+    #[fail(display = "{}", _0)]
+    Io(std::io::Error),
 }
 
 impl ResponseError for Error {
@@ -54,6 +65,7 @@ impl ResponseError for Error {
             Error::TransferUnavailable => HttpResponse::new(StatusCode::NOT_IMPLEMENTED),
             Error::VerifyFailed => HttpResponse::NotFound().finish(),
             Error::SerializeJsonError => HttpResponse::InternalServerError().finish(),
+            Error::Io(io) => HttpResponse::InternalServerError().finish(),
         }
     }
 }

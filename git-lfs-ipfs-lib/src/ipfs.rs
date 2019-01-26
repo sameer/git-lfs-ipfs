@@ -166,7 +166,10 @@ pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         })
 }
 
-pub fn cat_to_fs(path: Path, output: std::path::PathBuf) -> impl Future<Item = (), Error = Error> {
+pub fn cat_to_fs(
+    path: Path,
+    output: std::path::PathBuf,
+) -> impl Stream<Item = usize, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
             let mut url = url.join("api/v0/cat").unwrap();
@@ -182,15 +185,14 @@ pub fn cat_to_fs(path: Path, output: std::path::PathBuf) -> impl Future<Item = (
                 .timeout(Duration::from_secs(600))
                 .map_err(Error::IpfsApiSendRequestError)
         })
-        .and_then(|res| {
+        .into_stream()
+        .map(move |res| {
+            let mut file = std::fs::File::create(&output).unwrap();
             res.payload()
                 .map_err(Error::IpfsApiPayloadError)
-                .fold(std::fs::File::create(output).unwrap(), |mut acc, b| {
-                    acc.write(&b).unwrap();
-                    future::ok(acc)
-                })
-                .and_then(|_| Ok(()))
+                .and_then(move |b| file.write(&b).map_err(Error::Io))
         })
+        .flatten()
 }
 
 pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
@@ -375,7 +377,7 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
     // })
 }
 
-pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> {
+pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> + Send{
     use multiaddr::{AddrComponent, ToMultiaddr};
     use std::fs;
     use std::net::IpAddr;
