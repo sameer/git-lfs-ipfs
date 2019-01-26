@@ -3,36 +3,35 @@ use serde_derive::{Deserialize, Serialize};
 use crate::spec::ipfs::{string, Path};
 use crate::spec::Object;
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Operation {
     Upload,
     Download,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Init {
     pub operation: Operation,
-    #[serde(with = "string")]
-    pub remote: Path,
+    pub remote: String,
     pub concurrent: bool,
     pub concurrenttransfers: Option<usize>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Upload {
     #[serde(flatten)]
     pub object: Object,
     pub path: std::path::PathBuf,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Download {
     #[serde(flatten)]
     pub object: Object,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Complete {
     pub oid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -41,7 +40,7 @@ pub struct Complete {
     pub path: Option<std::path::PathBuf>,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
     pub oid: String,
@@ -49,7 +48,7 @@ pub struct Progress {
     pub bytes_since_last: u64,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "event", rename_all = "lowercase")]
 pub enum Event {
     Init(Init),
@@ -60,7 +59,7 @@ pub enum Event {
     Terminate,
 }
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Error {
     pub code: i32,
     pub message: String,
@@ -107,8 +106,7 @@ mod test {
             include_str!("../test/custom_init.json"),
             serde_json::to_string(&Event::Init(Init {
                 operation: Operation::Download,
-                remote: Path::from_str("/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn")
-                    .unwrap(),
+                remote: "origin".to_string(),
                 concurrent: true,
                 concurrenttransfers: Some(3)
             }))

@@ -10,7 +10,8 @@ use std::str::FromStr;
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
 lazy_static! {
-    pub static ref EMPTY_FOLDER_PATH: Path = Path::from_str("/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn").unwrap();
+    pub static ref EMPTY_FOLDER_PATH: Path =
+        Path::from_str("/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn").unwrap();
 }
 
 #[derive(Deserialize)]
@@ -60,7 +61,7 @@ pub struct Key {
     pub id: Cid,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct LsResponse {
     pub objects: Vec<ObjectPath>,
@@ -74,7 +75,7 @@ pub struct ObjectCid {
     pub links: Vec<Link>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectPath {
     #[serde(with = "string")]
@@ -89,7 +90,7 @@ pub struct ObjectResponse {
     pub hash: Cid,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Link {
     pub name: String,
@@ -97,6 +98,16 @@ pub struct Link {
     pub hash: Cid,
     pub size: u64,
     pub Type: i32, // Not sure how to handle this
+}
+
+impl Into<Path> for Link {
+    fn into(self) -> Path {
+        Path {
+            prefix: Prefix::Ipfs,
+            root: Root::Cid(self.hash),
+            suffix: None,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -267,7 +278,6 @@ mod test {
         );
     }
 }
-
 
 // TODO: Refactor to implement serialize for IpfsPath
 pub mod string {

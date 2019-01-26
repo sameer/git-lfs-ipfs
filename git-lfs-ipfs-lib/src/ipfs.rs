@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, rngs::SmallRng, FromEntropy, Rng};
 use url::Url;
 
+use std::io::Write;
 use std::iter::FromIterator;
 use std::str::FromStr;
 use std::time::Duration;
@@ -125,20 +126,17 @@ pub fn add(
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        // .and_then(|res: Result<AddResponse>| match res {
-        //     Result::Ok(res) => Ok(res),
-        //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-        // })
+    // .and_then(|res: Result<AddResponse>| match res {
+    //     Result::Ok(res) => Ok(res),
+    //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+    // })
 }
 
 pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
             let mut url = url.join("api/v0/get").unwrap();
-            url.query_pairs_mut()
-                .append_pair("arg", &path.to_string())
-                .append_pair("archive", "true")
-                .append_pair("compress", "false");
+            url.query_pairs_mut().append_pair("arg", &path.to_string());
             url
         })
         .and_then(|url| {
@@ -168,6 +166,33 @@ pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         })
 }
 
+pub fn cat_to_fs(path: Path, output: std::path::PathBuf) -> impl Future<Item = (), Error = Error> {
+    ipfs_api_url()
+        .map(move |url| {
+            let mut url = url.join("api/v0/cat").unwrap();
+            url.query_pairs_mut().append_pair("arg", &path.to_string());
+            url
+        })
+        .and_then(|url| {
+            debug!("Sending cattofs request to {}", url);
+            client::get(url)
+                .finish()
+                .unwrap()
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(Error::IpfsApiSendRequestError)
+        })
+        .and_then(|res| {
+            res.payload()
+                .map_err(Error::IpfsApiPayloadError)
+                .fold(std::fs::File::create(output).unwrap(), |mut acc, b| {
+                    acc.write(&b).unwrap();
+                    future::ok(acc)
+                })
+                .and_then(|_| Ok(()))
+        })
+}
+
 pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
@@ -185,7 +210,7 @@ pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
                 .unwrap()
                 .send()
                 .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
         // TODO: Handle json error responses
         .and_then(|res| {
@@ -241,6 +266,7 @@ pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
 
 pub fn ls(path: Path) -> impl Future<Item = LsResponse, Error = Error> {
     ipfs_api_url()
+        .wait()
         .map(move |url| {
             let mut url = url.join("api/v0/ls").unwrap();
             url.query_pairs_mut().append_pair("arg", &path.to_string());
@@ -248,12 +274,10 @@ pub fn ls(path: Path) -> impl Future<Item = LsResponse, Error = Error> {
             url
         })
         .map(|url| client::get(url).finish().unwrap())
-        .and_then(|client| {
-            client
-                .send()
-                .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
-        })
+        .unwrap()
+        .send()
+        .timeout(Duration::from_secs(600))
+        .map_err(|err| Error::IpfsApiSendRequestError(err))
         .and_then(|res| {
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
@@ -294,10 +318,10 @@ pub fn object_patch_link(
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        // .and_then(|res: Result<ObjectResponse>| match res {
-        //     Result::Ok(res) => Ok(res),
-        //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-        // })
+    // .and_then(|res: Result<ObjectResponse>| match res {
+    //     Result::Ok(res) => Ok(res),
+    //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
+    // })
 }
 
 pub fn name_publish(cid: Cid, key: Key) -> impl Future<Item = String, Error = Error> {
@@ -342,13 +366,13 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-        // .and_then(|res: Result<KeyListResponse>| match res {
-        //     Result::Ok(res) => Ok(res),
-        //     Result::Err(err) => {
-        //         error!("{:?}", err);
-        //         Err(Error::IpfsApiResponseError(err))
-        //     }
-        // })
+    // .and_then(|res: Result<KeyListResponse>| match res {
+    //     Result::Ok(res) => Ok(res),
+    //     Result::Err(err) => {
+    //         error!("{:?}", err);
+    //         Err(Error::IpfsApiResponseError(err))
+    //     }
+    // })
 }
 
 pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> {
