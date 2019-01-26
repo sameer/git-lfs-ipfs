@@ -24,10 +24,10 @@ extern crate pretty_assertions;
 
 use actix::prelude::*;
 
-mod transfer;
-mod smudge;
 mod clean;
 mod error;
+mod smudge;
+mod transfer;
 
 fn main() {
     env_logger::init();
@@ -50,14 +50,19 @@ fn main() {
     let sys = System::new("git-lfs-ipfs");
 
     match app_matches.subcommand() {
-        ("smudge", _) => {}
+        ("smudge", _) => {
+            std::io::copy(&mut std::io::stdin(), &mut std::io::stdout())
+                .expect("input could not be echoed");
+        }
         ("clean", _) => {
             clean::Clean::default().start();
         }
         ("transfer", _) => {
-                transfer::Transfer::default().start();
+            transfer::Transfer::default().start();
         }
-        _ => {}
+        _ => {
+            info!("Unknown command");
+        }
     };
     sys.run();
 }

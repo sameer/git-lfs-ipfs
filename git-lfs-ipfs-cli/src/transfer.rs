@@ -1,5 +1,4 @@
 use std::io::BufRead;
-use std::str::FromStr;
 
 use actix::prelude::*;
 use futures::{future, prelude::*, stream};
@@ -14,17 +13,13 @@ use git_lfs_ipfs_lib::{
 struct Input(custom::Event);
 
 impl Message for Input {
-    type Result = Result<Response, CliError>;
+    type Result = Result<Output, CliError>;
 }
 
 #[derive(Debug, Clone)]
-enum Response {
-    Replay, // 1st download request waits until ls response is received, then the response for that is sent back, system termination will still require that a response come back later (?)
-    // Streaming(Box<dyn Stream<Item = custom::Event, Error = ()>>),
-    Now(custom::Event),
-}
+struct Output(custom::Event);
 
-impl Message for Response {
+impl Message for Output {
     type Result = Result<(), ()>;
 }
 
@@ -81,18 +76,11 @@ impl StreamHandler<Input, CliError> for Transfer {
                     move |res, actor: &mut Self, ctx| match res.unwrap() {
                         Ok(response) => {
                             debug!("Received response {:?}", response);
-                            match response {
-                                Response::Now(event) => {
-                                    println!(
-                                        "{}",
-                                        serde_json::to_string(&event)
-                                            .expect("Failed to serialize an event")
-                                    );
-                                }
-                                Response::Replay => {
-                                    StreamHandler::<Input, CliError>::handle(actor, event, ctx);
-                                }
-                            }
+                            println!(
+                                "{}",
+                                serde_json::to_string(&response.0s)
+                                    .expect("Failed to serialize an event")
+                            );
                             actix::fut::ok(())
                         }
                         Err(err) => {
@@ -110,12 +98,12 @@ impl StreamHandler<Input, CliError> for Transfer {
     }
 }
 
-impl Handler<Response> for Transfer {
-    type Result = <Response as Message>::Result;
+impl Handler<Output> for Transfer {
+    type Result = <Output as Message>::Result;
 
-    fn handle(&mut self, res: Response, ctx: &mut <Self as Actor>::Context) -> Self::Result {
+    fn handle(&mut self, res: Output, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         match res {
-            Response::Now(event) => {
+            Output(event) => {
                 println!(
                     "{}",
                     serde_json::to_string(&event).expect("Failed to serialize an event")
@@ -143,11 +131,11 @@ impl Actor for Engine {
 }
 
 impl Handler<Input> for Engine {
-    type Result = ResponseActFuture<Self, Response, CliError>;
+    type Result = ResponseActFuture<Self, Output, CliError>;
     fn handle(&mut self, event: Input, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         match (event.0, &self.init.operation) {
             (custom::Event::Download(download), custom::Operation::Download) => {
-                let cid = ipfs::sha256_to_cid(&download.object.oid).wait().ok();
+                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid).wait().ok();
                 if let Some(cid) = cid {
                     let oid = download.object.oid.clone();
                     let mut output = std::env::current_dir().unwrap();
@@ -158,19 +146,19 @@ impl Handler<Input> for Engine {
                                 .map_err(CliError::IpfsApiError),
                         )
                         .fold(0, move |mut bytes_so_far, x, actor: &mut Self, ctx| {
-                            bytes_so_far += x;
+                            bytes_so_far += x as u64;
                             println!(
                                 "{}",
                                 serde_json::to_string(&custom::Event::Progress(custom::Progress {
                                     oid: oid.clone(),
                                     bytes_so_far,
-                                    bytes_since_last: x,
+                                    bytes_since_last: x as u64,
                                 }))
                                 .expect("Failed to serialize an event")
                             );
                             // TODO: Don't disobey actix style and just print events here, there must be a better way...
                             // ctx.spawn(actix::fut::wrap_future(actor.transfer.send(
-                            //     Response::Now(custom::Event::Progress(custom::Progress {
+                            //     Output(custom::Event::Progress(custom::Progress {
                             //         oid: oid.clone(),
                             //         bytes_so_far,
                             //         bytes_since_last: x,
@@ -181,7 +169,7 @@ impl Handler<Input> for Engine {
                             actix::fut::ok(bytes_so_far)
                         })
                         .map(move |_, _, _| {
-                            Response::Now(custom::Event::Complete(custom::Complete {
+                            Output(custom::Event::Complete(custom::Complete {
                                 oid: download.object.oid.clone(),
                                 error: None,
                                 path: Some(output),
@@ -189,28 +177,28 @@ impl Handler<Input> for Engine {
                         }),
                     )
                 } else {
-                    Box::new(actix::fut::wrap_future::<_, Self>(future::ok(
-                        Response::Now(custom::Event::Complete(custom::Complete {
+                    Box::new(actix::fut::wrap_future::<_, Self>(future::ok(Output(
+                        custom::Event::Complete(custom::Complete {
                             oid: download.object.oid.clone(),
                             error: Some(custom::Error {
                                 code: 404,
                                 message: "Object not found".to_string(),
                             }),
                             path: None,
-                        })),
-                    )))
+                        }),
+                    ))))
                 }
             }
             // Upload transfer is dummy, the smudge filter adds files to IPFS already
             // TODO: just check the sha256 hash with a /api/v0/block/get
             (custom::Event::Upload(upload), custom::Operation::Upload) => {
-                Box::new(actix::fut::wrap_future::<_, Self>(future::ok(
-                    Response::Now(custom::Event::Complete(custom::Complete {
+                Box::new(actix::fut::wrap_future::<_, Self>(future::ok(Output(
+                    custom::Event::Complete(custom::Complete {
                         oid: upload.object.oid,
                         error: None,
                         path: None,
-                    })),
-                )))
+                    }),
+                ))))
             }
             (event, _) => Box::new(actix::fut::wrap_future::<_, Self>(future::err(
                 CliError::UnexpectedEvent(event),

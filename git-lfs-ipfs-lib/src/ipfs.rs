@@ -23,7 +23,11 @@ lazy_static! {
     static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
 
-pub fn sha256_to_cid(sha256_str: &str) -> impl Future<Item = Cid, Error = Error> {
+pub fn sha256_to_cid(
+    codec: cid::Codec,
+    sha256_str: &str,
+) -> impl Future<Item = Cid, Error = Error> {
+    debug!("Shashasha {}", sha256_str);
     future::result(
         hex::decode(sha256_str)
             .ok()
@@ -31,7 +35,11 @@ pub fn sha256_to_cid(sha256_str: &str) -> impl Future<Item = Cid, Error = Error>
                 if digest.len() != 32 {
                     None
                 } else {
-                    Some(Cid::new(cid::Codec::Raw, cid::Version::V0, &digest))
+                    let mut mh = [0u8; 34];
+                    mh[0] = multihash::Hash::SHA2256.code();
+                    mh[1] = multihash::Hash::SHA2256.size();
+                    digest.iter().enumerate().for_each(|(i, x)| mh[i + 2] = *x);
+                    Some(Cid::new(codec, cid::Version::V0, &mh))
                 }
             })
             .ok_or(Error::HashError),
@@ -84,12 +92,13 @@ where
 
 pub fn add<P, E>(payload: P, length: Option<u64>) -> impl Future<Item = AddResponse, Error = Error>
 where
-    P: Stream<Item = Bytes, Error = E> + 'static, E: actix_web::error::ResponseError,
+    P: Stream<Item = Bytes, Error = E> + 'static,
+    E: actix_web::error::ResponseError,
 {
     ipfs_api_url()
         .map(|url| {
             let mut url = url.join("api/v0/add").unwrap();
-            url.query_pairs_mut().append_pair("hash", "sha2-256");
+            // url.query_pairs_mut().append_pair("hash", "sha2-256");
             url
         })
         .map(move |url| {

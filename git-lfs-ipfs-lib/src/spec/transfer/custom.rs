@@ -44,8 +44,8 @@ pub struct Complete {
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
     pub oid: String,
-    pub bytes_so_far: usize,
-    pub bytes_since_last: usize,
+    pub bytes_so_far: u64,
+    pub bytes_since_last: u64,
 }
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]

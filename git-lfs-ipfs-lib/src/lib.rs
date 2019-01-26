@@ -7,6 +7,7 @@ extern crate hex;
 extern crate lazy_static;
 extern crate mime;
 extern crate multiaddr;
+extern crate multihash;
 extern crate publicsuffix;
 extern crate rand;
 extern crate serde;

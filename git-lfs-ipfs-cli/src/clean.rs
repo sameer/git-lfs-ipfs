@@ -1,18 +1,14 @@
-use std::io::{BufRead, Write};
-use std::str::FromStr;
+use std::io::BufRead;
 
 use actix::prelude::*;
-use futures::{future, prelude::*, stream};
+use futures::prelude::*;
 
 use crate::error::CliError;
-use git_lfs_ipfs_lib::{
-    ipfs,
-    spec::{self, transfer::custom},
-};
+use git_lfs_ipfs_lib::{ipfs, spec};
 
-struct ReadPayload<R: BufRead + Send>(R);
+struct BufReadPayload<R: BufRead + Send>(R);
 
-impl<R: BufRead + Send> Stream for ReadPayload<R> {
+impl<R: BufRead + Send> Stream for BufReadPayload<R> {
     type Item = bytes::Bytes;
     type Error = std::io::Error;
 
@@ -43,7 +39,7 @@ impl Actor for Clean {
     fn started(&mut self, ctx: &mut <Clean as Actor>::Context) {
         ctx.wait(
             actix::fut::wrap_future(ipfs::add(
-                ReadPayload(std::io::BufReader::new(std::io::stdin())),
+                BufReadPayload(std::io::BufReader::new(std::io::stdin())),
                 None,
             ))
             .then(|result, actor: &mut Self, _ctx| {
