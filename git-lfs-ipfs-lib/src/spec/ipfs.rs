@@ -198,6 +198,14 @@ pub struct Path {
 }
 
 impl Path {
+    pub fn ipfs(cid: Cid) -> Self {
+        Self {
+            prefix: Prefix::Ipfs,
+            root: Root::Cid(cid),
+            suffix: None,
+        }
+    }
+
     pub fn parse(prefix: Prefix, root: Root, suffix: Option<PathBuf>) -> Option<Self> {
         if prefix.is_dnslink_allowed() {
             Self {

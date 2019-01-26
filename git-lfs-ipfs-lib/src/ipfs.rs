@@ -82,17 +82,14 @@ where
 //     .get(header::CONTENT_LENGTH)
 //     .and_then(|x| x.to_str().ok()),
 
-pub fn add(
-    payload: Payload,
-    length: Option<u64>,
-) -> impl Future<Item = AddResponse, Error = Error> {
+pub fn add<P, E>(payload: P, length: Option<u64>) -> impl Future<Item = AddResponse, Error = Error>
+where
+    P: Stream<Item = Bytes, Error = E> + 'static, E: actix_web::error::ResponseError,
+{
     ipfs_api_url()
         .map(|url| {
             let mut url = url.join("api/v0/add").unwrap();
-            // url.query_pairs_mut()
-            //     .append_pair("raw-leaves", "true")
-            //     .append_pair("hash", "sha2-256")
-            //     .append_pair("cid-version", "0");
+            url.query_pairs_mut().append_pair("hash", "sha2-256");
             url
         })
         .map(move |url| {
@@ -232,6 +229,39 @@ pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         })
 }
 
+pub fn block_get(cid: Cid) -> impl Future<Item = HttpResponse, Error = Error> {
+    ipfs_api_url()
+        .map(move |url| {
+            let mut url = url.join("api/v0/block/get").unwrap();
+            url.query_pairs_mut().append_pair("arg", &cid.to_string());
+            url
+        })
+        .and_then(|url| {
+            debug!("Sending block get request to {}", url);
+            client::get(url)
+                .finish()
+                .unwrap()
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(Error::IpfsApiSendRequestError)
+        })
+        .and_then(|res| {
+            // if res.status().is_success() {
+            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+            res.headers()
+                .iter()
+                .filter(|(h, _)| *h != "connection")
+                .for_each(|(k, v)| {
+                    proxy_res.header(k.clone(), v.clone());
+                });
+            Ok(proxy_res.streaming(res.payload()))
+            // }
+            // else {
+            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+            // }
+        })
+}
+
 pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
@@ -268,22 +298,21 @@ pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
 
 pub fn ls(path: Path) -> impl Future<Item = LsResponse, Error = Error> {
     ipfs_api_url()
-        .wait()
         .map(move |url| {
             let mut url = url.join("api/v0/ls").unwrap();
             url.query_pairs_mut().append_pair("arg", &path.to_string());
             debug!("Sending ls request to {}", url);
             url
         })
-        .map(|url| client::get(url).finish().unwrap())
-        .unwrap()
-        .send()
-        .timeout(Duration::from_secs(600))
-        .map_err(|err| Error::IpfsApiSendRequestError(err))
-        .and_then(|res| {
-            res.json()
-                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+        .and_then(|url| {
+            client::get(url)
+                .finish()
+                .unwrap()
+                .send()
+                .timeout(Duration::from_secs(600))
+                .map_err(Error::IpfsApiSendRequestError)
         })
+        .and_then(|res| res.json().map_err(Error::IpfsApiJsonPayloadError))
     // .and_then(|res: Result<LsResponse>| match res {
     //     Result::Ok(res) => Ok(res),
     //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
@@ -377,7 +406,7 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
     // })
 }
 
-pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> + Send{
+pub fn ipfs_api_url() -> impl Future<Item = Url, Error = Error> + Send {
     use multiaddr::{AddrComponent, ToMultiaddr};
     use std::fs;
     use std::net::IpAddr;
