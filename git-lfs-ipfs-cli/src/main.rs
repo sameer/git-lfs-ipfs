@@ -44,16 +44,12 @@ enum CliError {
 }
 
 struct Communicator {
-    engine: actix::Addr<Engine>,
-    initialized: bool,
+    engine: Option<actix::Addr<Engine>>,
 }
 
-impl Communicator {
-    fn new(engine: actix::Addr<Engine>) -> Self {
-        Self {
-            engine,
-            initialized: false,
-        }
+impl Default for Communicator {
+    fn default() -> Self {
+        Self { engine: None }
     }
 }
 
@@ -80,31 +76,37 @@ impl Actor for Communicator {
 
 impl StreamHandler<Event, CliError> for Communicator {
     fn handle(&mut self, event: Event, ctx: &mut Context<Self>) {
-        if let Event(custom::Event::Init(_)) = &event {
-            if self.initialized {
-                panic!(CliError::UnexpectedEvent(event));
-            } else {
-                self.initialized = true;
+        match (self.engine.clone(), event) {
+            (None, Event(custom::Event::Init(init))) => {
+                self.engine = Some(Engine::new(init).start());
             }
-        }
-
-        ctx.wait(actix::fut::wrap_future(self.engine.send(event).then(
-            |res| match res.unwrap() {
-                Ok(event) => {
-                    if let Some(event) = event {
-                        println!(
-                            "{}",
-                            serde_json::to_string(&event).expect("Failed to serialize an event")
-                        );
-                    }
-                    Ok(())
-                }
-                Err(err) => {
-                    panic!("{:?}", err);
-                    Err(())
-                }
-            },
-        )));
+            (None, event) => {
+                panic!(CliError::UnexpectedEvent(event));
+            }
+            (Some(engine), Event(custom::Event::Init(init))) => {
+                panic!(CliError::UnexpectedEvent(Event(custom::Event::Init(init))));
+            }
+            (Some(engine), event) => {
+                ctx.wait(actix::fut::wrap_future(engine.send(event).then(
+                    |res| match res.unwrap() {
+                        Ok(event) => {
+                            if let Some(event) = event {
+                                println!(
+                                    "{}",
+                                    serde_json::to_string(&event)
+                                        .expect("Failed to serialize an event")
+                                );
+                            }
+                            Ok(())
+                        }
+                        Err(err) => {
+                            panic!("{:?}", err);
+                            Err(())
+                        }
+                    },
+                )));
+            }
+        };
     }
 
     fn error(&mut self, err: CliError, ctx: &mut Context<Self>) -> Running {
@@ -114,17 +116,14 @@ impl StreamHandler<Event, CliError> for Communicator {
 
 struct Engine {
     init: custom::Init,
+    contents: Option<spec::ipfs::LsResponse>,
 }
 
-impl Default for Engine {
-    fn default() -> Self {
+impl Engine {
+    fn new(init: custom::Init) -> Self {
         Self {
-            init: custom::Init {
-                operation: custom::Operation::Download,
-                remote: spec::ipfs::EMPTY_FOLDER_PATH.clone(),
-                concurrent: false,
-                concurrenttransfers: None,
-            },
+            init,
+            contents: None,
         }
     }
 }
@@ -137,10 +136,6 @@ impl Handler<Event> for Engine {
     type Result = ResponseActFuture<Self, Option<Event>, CliError>;
     fn handle(&mut self, event: Event, ctx: &mut Context<Self>) -> Self::Result {
         match (event.0, &self.init.operation) {
-            (custom::Event::Init(init), _) => {
-                self.init = init;
-                Box::new(actix::fut::wrap_future::<_, Self>(future::ok(None)))
-            }
             (custom::Event::Terminate, _) => {
                 System::current().stop();
                 Box::new(actix::fut::wrap_future::<_, Self>(future::ok(None)))
@@ -160,7 +155,6 @@ impl Handler<Event> for Engine {
 
 fn main() {
     let sys = System::new("git-lfs-ipfs");
-    let engine = Engine::default().start();
-    Communicator::new(engine).start();
+    Communicator::default().start();
     sys.run();
 }
