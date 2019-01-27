@@ -172,18 +172,18 @@ pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
         })
 }
 
-pub fn cat_to_fs(
+pub fn block_get_to_fs(
     path: Path,
     output: std::path::PathBuf,
 ) -> impl Stream<Item = usize, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
-            let mut url = url.join("api/v0/cat").unwrap();
+            let mut url = url.join("api/v0/block/get").unwrap();
             url.query_pairs_mut().append_pair("arg", &path.to_string());
             url
         })
         .and_then(|url| {
-            debug!("Sending cattofs request to {}", url);
+            debug!("Sending block get to fs request to {}", url);
             client::get(url)
                 .finish()
                 .unwrap()
@@ -201,7 +201,7 @@ pub fn cat_to_fs(
         .flatten()
 }
 
-pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn cat(path: Path) -> impl Future<Item = client::ClientResponse, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
             Ok(url) => {
@@ -219,22 +219,6 @@ pub fn cat(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
                 .send()
                 .timeout(Duration::from_secs(600))
                 .map_err(Error::IpfsApiSendRequestError)
-        })
-        // TODO: Handle json error responses
-        .and_then(|res| {
-            // if res.status().is_success() {
-            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
-            res.headers()
-                .iter()
-                .filter(|(h, _)| *h != "connection")
-                .for_each(|(k, v)| {
-                    proxy_res.header(k.clone(), v.clone());
-                });
-            Ok(proxy_res.streaming(res.payload()))
-            // }
-            // else {
-            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
-            // }
         })
 }
 

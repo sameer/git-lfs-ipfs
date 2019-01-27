@@ -142,7 +142,7 @@ impl Handler<Input> for Engine {
                     output.push(&download.object.oid);
                     Box::new(
                         actix::fut::wrap_stream(
-                            ipfs::cat_to_fs(spec::ipfs::Path::ipfs(cid.clone()), output.clone())
+                            ipfs::block_get_to_fs(spec::ipfs::Path::ipfs(cid.clone()), output.clone())
                                 .map_err(CliError::IpfsApiError),
                         )
                         .fold(0, move |mut bytes_so_far, x, actor: &mut Self, ctx| {

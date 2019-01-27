@@ -1,5 +1,5 @@
 use actix_web::Path;
-use actix_web::{FutureResponse as ActixFutureReponse, Json};
+use actix_web::{FutureResponse as ActixFutureReponse, Json, dev::HttpResponseBuilder};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use futures::future;
 use futures::prelude::*;
@@ -68,7 +68,22 @@ pub fn download_object(path: Path<(Prefix, String, String)>) -> ActixFutureRepon
     let oid = path.2;
     Box::new(
         ipfs::parse_ipfs_path(prefix, &root, PathBuf::from(oid))
-            .and_then(|path| ipfs::cat(path))
+            .and_then(|path| ipfs::cat(path)        // TODO: Handle json error responses
+        .and_then(|res| {
+            // if res.status().is_success() {
+            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+            res.headers()
+                .iter()
+                .filter(|(h, _)| *h != "connection")
+                .for_each(|(k, v)| {
+                    proxy_res.header(k.clone(), v.clone());
+                });
+            Ok(proxy_res.streaming(res.payload()))
+            // }
+            // else {
+            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+            // }
+        }))
             .map_err(actix_web::error::Error::from),
     )
 }

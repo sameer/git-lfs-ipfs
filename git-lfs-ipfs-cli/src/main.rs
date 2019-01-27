@@ -1,4 +1,5 @@
 extern crate actix;
+extern crate actix_web;
 #[macro_use]
 extern crate clap;
 extern crate dirs;
@@ -37,9 +38,11 @@ fn main() {
         (about: crate_description!())
         (@subcommand smudge =>
             (about: "git-lfs smudge filter extension for ipfs")
+            (@arg filename: +required "name of the file")
         )
         (@subcommand clean =>
             (about: "git-lfs clean filter extension for ipfs")
+            (@arg filename: +required "name of the file")
         )
         (@subcommand transfer =>
             (about: "git-lfs custom transfer for ipfs")
@@ -51,8 +54,7 @@ fn main() {
 
     match app_matches.subcommand() {
         ("smudge", _) => {
-            std::io::copy(&mut std::io::stdin(), &mut std::io::stdout())
-                .expect("input could not be echoed");
+            smudge::Smudge::default().start();
         }
         ("clean", _) => {
             clean::Clean::default().start();
