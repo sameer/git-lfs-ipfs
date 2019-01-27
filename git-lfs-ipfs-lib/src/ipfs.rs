@@ -222,7 +222,7 @@ pub fn cat(path: Path) -> impl Future<Item = client::ClientResponse, Error = Err
         })
 }
 
-pub fn block_get(cid: Cid) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn block_get(cid: Cid) -> impl Future<Item = client::ClientResponse, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
             let mut url = url.join("api/v0/block/get").unwrap();
@@ -237,21 +237,6 @@ pub fn block_get(cid: Cid) -> impl Future<Item = HttpResponse, Error = Error> {
                 .send()
                 .timeout(Duration::from_secs(600))
                 .map_err(Error::IpfsApiSendRequestError)
-        })
-        .and_then(|res| {
-            // if res.status().is_success() {
-            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
-            res.headers()
-                .iter()
-                .filter(|(h, _)| *h != "connection")
-                .for_each(|(k, v)| {
-                    proxy_res.header(k.clone(), v.clone());
-                });
-            Ok(proxy_res.streaming(res.payload()))
-            // }
-            // else {
-            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
-            // }
         })
 }
 

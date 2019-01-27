@@ -1,6 +1,7 @@
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 use actix::prelude::*;
+use actix_web::HttpMessage;
 use futures::prelude::*;
 
 use crate::error::CliError;
@@ -25,12 +26,14 @@ impl<R: BufRead + Send> Stream for BufReadPayload<R> {
 }
 
 pub struct Clean {
-    add_response: Option<Result<spec::ipfs::AddResponse, CliError>>,
+    raw_block_data: Option<Result<bytes::Bytes, CliError>>,
 }
 
 impl Default for Clean {
     fn default() -> Self {
-        Self { add_response: None }
+        Self {
+            raw_block_data: None,
+        }
     }
 }
 
@@ -38,12 +41,19 @@ impl Actor for Clean {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut <Clean as Actor>::Context) {
         ctx.wait(
-            actix::fut::wrap_future(ipfs::add(
-                BufReadPayload(std::io::BufReader::new(std::io::stdin())),
-                None,
-            ))
+            actix::fut::wrap_future(
+                ipfs::add(
+                    BufReadPayload(std::io::BufReader::new(std::io::stdin())),
+                    None,
+                )
+                .and_then(|add_response| ipfs::block_get(add_response.hash))
+                .and_then(|res| {
+                    res.body()
+                        .map_err(git_lfs_ipfs_lib::error::Error::IpfsApiPayloadError)
+                }),
+            )
             .then(|result, actor: &mut Self, _ctx| {
-                actor.add_response = Some(result.map_err(CliError::IpfsApiError));
+                actor.raw_block_data = Some(result.map_err(CliError::IpfsApiError));
                 System::current().stop();
                 actix::fut::ok(())
             }),
@@ -51,25 +61,12 @@ impl Actor for Clean {
     }
 
     fn stopped(&mut self, ctx: &mut <Clean as Actor>::Context) {
-        if let Some(Ok(add_response)) = &self.add_response {
-            debug!("{}", add_response.hash);
-            match &add_response.hash {
-                cid::Cid {
-                    version: cid::Version::V0,
-                    codec: _,
-                    hash,
-                } => multihash::decode(&hash).ok(),
-                _ => None,
-            }
-            .map(|mh| match mh {
-                multihash::Multihash {
-                    alg: multihash::Hash::SHA2256,
-                    digest,
-                } => {
-                    println!("{}", hex::encode(digest));
-                }
-                _ => {}
-            });
+        match &self.raw_block_data {
+            Some(Ok(raw_block_data)) => std::io::stdout()
+                .write_all(raw_block_data)
+                .expect("unable to write to stdout"),
+            Some(Err(err)) => panic!("{:?}", err),
+            _ => panic!("clean stopped before completion"),
         }
     }
 }
