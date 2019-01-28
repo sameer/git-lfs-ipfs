@@ -20,6 +20,8 @@ cargo build --release
 
 None yet!
 
+### Configuration
+
 Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
 
 ```
