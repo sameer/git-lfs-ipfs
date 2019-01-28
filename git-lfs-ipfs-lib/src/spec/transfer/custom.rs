@@ -1,8 +1,8 @@
 use serde_derive::{Deserialize, Serialize};
 
-use crate::spec::ipfs::{string, Path};
 use crate::spec::Object;
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-1-intiation
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Operation {
@@ -10,6 +10,7 @@ pub enum Operation {
     Download,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-1-intiation
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Init {
     pub operation: Operation,
@@ -18,6 +19,7 @@ pub struct Init {
     pub concurrenttransfers: Option<usize>,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#uploads
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Upload {
     #[serde(flatten)]
@@ -25,12 +27,14 @@ pub struct Upload {
     pub path: std::path::PathBuf,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#downloads
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Download {
     #[serde(flatten)]
     pub object: Object,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-2-0n-transfers
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 pub struct Complete {
     pub oid: String,
@@ -40,6 +44,14 @@ pub struct Complete {
     pub path: Option<std::path::PathBuf>,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-2-0n-transfers
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
+pub struct Error {
+    pub code: i32,
+    pub message: String,
+}
+
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#progress
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
@@ -48,6 +60,7 @@ pub struct Progress {
     pub bytes_since_last: u64,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#protocol
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "event", rename_all = "lowercase")]
 pub enum Event {
@@ -56,13 +69,8 @@ pub enum Event {
     Download(Download),
     Complete(Complete),
     Progress(Progress),
+    /// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-3-finish--cleanup
     Terminate,
-}
-
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]
-pub struct Error {
-    pub code: i32,
-    pub message: String,
 }
 
 #[cfg(test)]

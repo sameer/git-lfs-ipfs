@@ -38,6 +38,7 @@ pub struct Error {
     Type: String,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-add
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct AddResponse {
@@ -47,12 +48,14 @@ pub struct AddResponse {
     pub size: String,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-key-list
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct KeyListResponse {
     pub keys: Vec<Key>,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-key-list
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Key {
@@ -61,6 +64,7 @@ pub struct Key {
     pub id: Cid,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-ls
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct LsResponse {
@@ -75,6 +79,7 @@ pub struct ObjectCid {
     pub links: Vec<Link>,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-ls
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectPath {
@@ -90,6 +95,7 @@ pub struct ObjectResponse {
     pub hash: Cid,
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-object-links
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Link {
@@ -110,6 +116,7 @@ impl Into<Path> for Link {
     }
 }
 
+/// https://docs.ipfs.io/reference/api/http/#api-v0-resolve
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ResolveResponse {
@@ -171,7 +178,7 @@ impl Display for Root {
 }
 
 lazy_static! {
-    static ref public_suffix_list: publicsuffix::List = publicsuffix::List::fetch().unwrap();
+    static ref PUBLIC_SUFFIX_LIST: publicsuffix::List = publicsuffix::List::fetch().unwrap();
 }
 
 impl FromStr for Root {
@@ -180,7 +187,7 @@ impl FromStr for Root {
         use cid::ToCid;
         if let Ok(cid) = s.to_cid() {
             Ok(Root::Cid(cid))
-        } else if let Ok(dns_link) = public_suffix_list.parse_domain(s) {
+        } else if let Ok(dns_link) = PUBLIC_SUFFIX_LIST.parse_domain(s) {
             Ok(Root::DnsLink(dns_link))
         } else {
             Err(crate::error::Error::IpfsPathParseError(

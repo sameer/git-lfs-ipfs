@@ -1,2 +1,2 @@
 [workspace]
-members = ["git-lfs-ipfs-cli", "git-lfs-ipfs-http", "git-lfs-ipfs-lib"]
+members = ["git-lfs-ipfs-cli", "git-lfs-ipfs-lib"]

@@ -1,12 +1,7 @@
-use actix_web::dev::Payload;
-use actix_web::{
-    client, dev::HttpResponseBuilder, http::header, AsyncResponder,
-    FutureResponse as ActixFutureReponse, HttpMessage, HttpRequest, HttpResponse, Json,
-};
+use actix_web::{client, dev::HttpResponseBuilder, http::header, HttpMessage, HttpResponse};
 use bytes::Bytes;
 use cid::Cid;
-use futures::prelude::*;
-use futures::{future, stream};
+use futures::{future, prelude::*};
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, rngs::SmallRng, FromEntropy, Rng};
 use url::Url;
@@ -63,8 +58,6 @@ fn multipart_begin(length: Option<u64>, boundary: &str) -> String {
         boundary
     ));
     begin.push_str(&format!("--{}\r\n\r\n", boundary,));
-    // begin.push_str("Content-Disposition: form-data; name=\"path\"; filename=\"file\"\r\n");
-    // begin.push_str("Content-Type: application/octet-stream\r\n");
     begin
 }
 
@@ -84,10 +77,6 @@ where
         Path::parse(prefix, root, suffix.into()).ok_or(Error::IpfsPathParseError("Parse failed"))
     }))
 }
-
-// req.headers()
-//     .get(header::CONTENT_LENGTH)
-//     .and_then(|x| x.to_str().ok()),
 
 pub fn add<P, E>(payload: P, length: Option<u64>) -> impl Future<Item = AddResponse, Error = Error>
 where
@@ -117,7 +106,7 @@ where
                     .chain(
                         future::ok(bytes::Bytes::from(multipart_end(&boundary).as_bytes()))
                             .into_stream(),
-                    )
+                    ),
                 )
                 .unwrap()
         })

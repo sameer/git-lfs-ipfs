@@ -6,6 +6,7 @@ use url::Url;
 
 use crate::spec::Object;
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#requests
 #[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct BatchRequest {
     pub operation: Operation,
@@ -16,6 +17,7 @@ pub struct BatchRequest {
     pub objects: Vec<Object>,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#successful-responses
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct BatchResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,6 +25,7 @@ pub struct BatchResponse {
     pub objects: Vec<ObjectResponse>,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#requests
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Operation {
@@ -30,6 +33,7 @@ pub enum Operation {
     Upload,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/basic-transfers.md#basic-transfer-api
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Transfer {
@@ -49,11 +53,13 @@ impl Default for Transfer {
     }
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#ref-property
 #[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct Ref {
     pub name: String,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#successful-responses
 #[derive(PartialEq, Eq, Debug, Serialize)]
 #[serde(untagged)]
 pub enum ObjectResponse {
@@ -85,6 +91,7 @@ impl ObjectResponse {
     }
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#successful-responses
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct ObjectSuccess {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,6 +99,7 @@ pub struct ObjectSuccess {
     actions: Actions,
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#response-errors
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct ObjectError {
     code: u16,
@@ -120,6 +128,7 @@ impl ObjectError {
     }
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/basic-transfers.md#basic-transfer-api
 #[derive(PartialEq, Eq, Debug, Serialize)]
 #[serde(untagged)]
 pub enum Actions {
@@ -129,6 +138,7 @@ pub enum Actions {
     UploadAndVerify { upload: Action, verify: Action },
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/basic-transfers.md#basic-transfer-api
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct Action {
     #[serde(with = "url_serde")]
@@ -152,6 +162,7 @@ impl Action {
     }
 }
 
+/// https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md#response-errors
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct LfsErrorResponse {
     message: &'static str,
