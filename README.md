@@ -36,7 +36,7 @@ Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
     priority = 0
 ```
 
-**Note that git-lfs-ipfs will be enabled by default for all future LFS usage if you enable this.**
+**Note that git-lfs-ipfs will be enabled by default for all future LFS usage if you add these lines to your configuration.**
 
 ## Demo
 
