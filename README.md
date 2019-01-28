@@ -12,7 +12,7 @@ Working git-lfs custom transfer and extension implementations to use IPFS as sto
 
 ```bash
 git clone git@github.com:sameer/git-lfs-ipfs.git
-cd git-lfs-ipfs
+cd git-lfs-ipfs/git-lfs-ipfs/cli
 cargo build --release
 ```
 
