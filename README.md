@@ -1,113 +1,47 @@
 # git-lfs-ipfs
 
-git-lfs custom transfer and extension implementations to use IPFS as storage.
+Working git-lfs custom transfer and extension implementations to use IPFS as storage.
 
 [![Build Status](https://travis-ci.org/sameer/git-lfs-ipfs.svg?branch=master)](https://travis-ci.org/sameer/git-lfs-ipfs)
 
 [![Coverage Status](https://coveralls.io/repos/github/sameer/git-lfs-ipfs/badge.svg?branch=master)](https://coveralls.io/github/sameer/git-lfs-ipfs?branch=master)
 
-## Download Workflow
+## Installation
 
-Same for all types -- the server will transmit objects to git-lfs.
-
-## Upload Workflow
-
-### Solely IPFS (not possible right now)
-
-#### First time
+### Building
 
 ```bash
-# Do your git stuff
-# Use http://localhost:5002/ipfs/QmEmptyFolderHash as the LFS server
-git lfs push
-# Manually update LFS server url to http://localhost:5002/ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
-git add .lfsconfig
-git commit -m "Update git lfs URL"
-git push origin master
+git clone git@github.com:sameer/git-lfs-ipfs.git
+cd git-lfs-ipfs
+cargo build --release
 ```
 
-#### Subsequently
+### Packages
 
-```bash
-# Do your git stuff
-git lfs push
-# Manually update LFS server url to http://localhost:5002/ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
-git add .lfsconfig
-git commit -m "Update git lfs URL"
-git push origin master
+None yet!
+
+Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
+
+```
+[lfs "customtransfer.ipfs"]
+	path = git-lfs-ipfs-cli
+	args = transfer
+	concurrent = true
+	direction = both
+[lfs "extension.ipfs"]
+    clean = git-lfs-ipfs-cli clean %f
+    smudge = git-lfs-ipfs-cli smudge %f
+    priority = 0
 ```
 
-### With IPNS publish (if key available)
+**Note that git-lfs-ipfs will be enabled by default for all future LFS usage if you enable this.**
 
-#### First time
+## Demo
 
-```bash
-# Make a key for the first time
-ipfs gen key myrepokey --type=rsa
-ipfs name publish QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn --key=myrepokey
-# Do your git stuff
-# Use http://localhost:5002/ipns/QmPeerId as the LFS server
-git add .lfsconfig
-git commit -m "Update git lfs URL"
-git push origin master
-```
+A demo repository is available to test out your installation: [sameer/git-lfs-ipfs-demo](https://github.com/sameer/git-lfs-ipfs-demo).
 
-#### Subsequently
+## Usage
 
-```bash
-# Do your git stuff
-git push origin master
-# The ipns key, if available locally, will be used to update the hash
-# else only download can be done
-```
+Use git LFS like you usually do and all subsequent files added in LFS will be added to IPFS.
 
-### DNSLINK (not possible right now)
-
-#### First time
-
-```bash
-# Do your git stuff
-# Use http://localhost:5002/ipns/mysite.com as the LFS server for the first time
-git lfs push
-# Manually update DNSLINK record to /ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
-git add .lfsconfig
-git commit -m "Update git lfs URL"
-git push origin master
-```
-
-#### Subsequently
-
-```bash
-# Do your git stuff
-git lfs push
-# Manually update DNSLINK record to /ipfs/QmNewHash (NOT POSSIBLE RIGHT NOW)
-git add .lfsconfig
-git commit -m "Update git lfs URL"
-git push origin master
-```
-
-## Behind the Scenes (CLI equivalent)
-
-### Upload
-
-```bash
-ipfs add object --> QmObjectHash
-ipfs name resolve /ipns/QmPeerId --> QmCurrentHash
-ipfs object patch link QmCurrentHash <object id (sha256sum)> QmObjectId --> QmNewHash
-ipfs name publish QmNewHash --key=QmPeerId
-```
-
-### Verify
-
-While the step is optional in the LFS protocol, it helps ensure that uploading the object did actually work for an IPNS publish.
-
-```bash
-ipfs ls /ipns/QmPeerId --> <unixfs links list>
-grep <object id> <unixfs links list>
-```
-
-### Download
-
-```bash
-ipfs get /ipns/QmPeerId/<object id>
-```
+Currently files already on S3, etc. cannot be read unless you remove the `[lfs "customtransfer.ipfs"]` entry in `~/.gitconfig`, because the IPFS custom transfer overrides your default transfer.
