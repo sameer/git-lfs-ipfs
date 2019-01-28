@@ -1,29 +1,11 @@
-use std::io::{BufRead, Write};
+use std::io::{self, BufRead, Write};
 
 use actix::prelude::*;
 use actix_web::HttpMessage;
-use futures::prelude::*;
+use futures::{future, prelude::*, sync::mpsc};
 
 use crate::error::CliError;
 use git_lfs_ipfs_lib::{ipfs, spec};
-
-struct BufReadPayload<R: BufRead + Send>(R);
-
-impl<R: BufRead + Send> Stream for BufReadPayload<R> {
-    type Item = bytes::Bytes;
-    type Error = std::io::Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let buf = self.0.fill_buf().map(|buf| bytes::Bytes::from(buf))?;
-        match buf.len() {
-            0 => Ok(Async::Ready(None)),
-            nonzero => {
-                self.0.consume(nonzero);
-                Ok(Async::Ready(Some(buf)))
-            }
-        }
-    }
-}
 
 pub struct Clean {
     raw_block_data: Option<Result<bytes::Bytes, CliError>>,
@@ -40,10 +22,36 @@ impl Default for Clean {
 impl Actor for Clean {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut <Clean as Actor>::Context) {
+        let (tx, rx) = mpsc::channel(4);
+        let stdin = io::stdin();
+        actix::spawn(
+            future::loop_fn(tx, move |tx| {
+                let mut lock = stdin.lock();
+                let buf = lock.fill_buf().map(bytes::Bytes::from);
+                let mut should_break = false;
+                if let Ok(buf) = &buf {
+                    lock.consume(buf.len());
+                    if buf.len() == 0 {
+                        should_break = true
+                    }
+                } else {
+                    should_break = true;
+                }
+                tx.send(buf).map(move |tx| {
+                    if should_break {
+                        future::Loop::Break(tx)
+                    } else {
+                        future::Loop::Continue(tx)
+                    }
+                })
+            })
+            .then(|_| Ok(())),
+        );
         ctx.wait(
             actix::fut::wrap_future(
                 ipfs::add(
-                    BufReadPayload(std::io::BufReader::new(std::io::stdin())),
+                    rx.then(|x| x.expect("mpsc unwrap panicked, but never should"))
+                        .filter(|x| x.len() != 0),
                     None,
                 )
                 .and_then(|add_response| ipfs::block_get(add_response.hash))
@@ -60,9 +68,9 @@ impl Actor for Clean {
         );
     }
 
-    fn stopped(&mut self, ctx: &mut <Clean as Actor>::Context) {
+    fn stopped(&mut self, _ctx: &mut <Clean as Actor>::Context) {
         match &self.raw_block_data {
-            Some(Ok(raw_block_data)) => std::io::stdout()
+            Some(Ok(raw_block_data)) => io::stdout()
                 .write_all(raw_block_data)
                 .expect("unable to write to stdout"),
             Some(Err(err)) => panic!("{:?}", err),

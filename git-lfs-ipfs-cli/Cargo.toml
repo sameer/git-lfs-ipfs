@@ -5,7 +5,7 @@ authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "0.7", default-features = false, features = ["cell"] }
+actix-web = "0.7"
 actix = "0.7"
 serde = "1.0"
 serde_derive = "1.0"

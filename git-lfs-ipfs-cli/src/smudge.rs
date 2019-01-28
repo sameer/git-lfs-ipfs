@@ -1,15 +1,11 @@
 use std::io::{self, Read, Write};
-use std::str::FromStr;
 
 use actix::prelude::*;
 use actix_web::HttpMessage;
-use futures::{future, prelude::*, stream};
+use futures::{future, prelude::*};
 
 use crate::error::CliError;
-use git_lfs_ipfs_lib::{
-    ipfs,
-    spec::{self, transfer::custom},
-};
+use git_lfs_ipfs_lib::{ipfs, spec};
 
 pub struct Smudge {
     // TODO: Does this actually need to be buffered, even if files are large?

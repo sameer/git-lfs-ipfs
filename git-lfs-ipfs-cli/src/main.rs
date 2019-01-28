@@ -64,6 +64,7 @@ fn main() {
         }
         _ => {
             info!("Unknown command");
+            return;
         }
     };
     sys.run();

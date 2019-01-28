@@ -27,7 +27,6 @@ pub fn sha256_to_cid(
     codec: cid::Codec,
     sha256_str: &str,
 ) -> impl Future<Item = Cid, Error = Error> {
-    debug!("Shashasha {}", sha256_str);
     future::result(
         hex::decode(sha256_str)
             .ok()
@@ -118,7 +117,7 @@ where
                     .chain(
                         future::ok(bytes::Bytes::from(multipart_end(&boundary).as_bytes()))
                             .into_stream(),
-                    ),
+                    )
                 )
                 .unwrap()
         })
@@ -132,10 +131,6 @@ where
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
         })
-    // .and_then(|res: Result<AddResponse>| match res {
-    //     Result::Ok(res) => Ok(res),
-    //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
-    // })
 }
 
 pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
