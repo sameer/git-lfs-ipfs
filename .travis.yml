@@ -1,19 +1,8 @@
-sudo: true
-dist: xenial
+sudo: required
 language: rust
-rust:
-  - beta
-  - nightly
-script:
-  - ./test/build_kcov.sh
-  - cargo build
-  - rm -f ./target/debug/git_lfs_ipfs*
-  - RUSTFLAGS='-C link-dead-code' cargo test --no-run
-  - kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo --exclude-path=/usr target/cov `find target/debug/ -maxdepth 1 -executable -type f -name "git_lfs_ipfs_lib-*"`
-cache:
-  cargo: true
-before_cache:
-  - rm -r target/cov
+
+cache: cargo
+
 addons:
   apt:
     update: true
@@ -22,4 +11,23 @@ addons:
       - libdw-dev
       - binutils-dev
       - cmake
-      - gcc
+    sources:
+      - kalakris-cmake
+
+rust:
+  - beta
+  - nightly
+
+
+before_script:
+  - export PATH=$HOME/.cargo/bin:$PATH
+  - cargo install cargo-update || echo "cargo-update already installed"
+  - cargo install cargo-travis || echo "cargo-travis already installed"
+  - cargo install-update -a # update outdated cached binaries
+script:
+  - cargo test
+after_success:
+  - cargo coveralls
+
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
