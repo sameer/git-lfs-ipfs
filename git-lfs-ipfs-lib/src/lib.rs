@@ -4,6 +4,7 @@ extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate hex;
+extern crate idna;
 extern crate lazy_static;
 extern crate mime;
 extern crate multiaddr;
@@ -17,6 +18,7 @@ extern crate url;
 extern crate url_serde;
 #[macro_use]
 extern crate log;
+extern crate path_clean;
 
 #[cfg(test)]
 #[macro_use]
@@ -24,5 +26,4 @@ extern crate pretty_assertions;
 
 pub mod error;
 pub mod ipfs;
-pub mod pointer;
 pub mod spec;

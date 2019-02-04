@@ -65,19 +65,6 @@ fn multipart_end(boundary: &str) -> String {
     format!("\r\n--{}--\r\n", boundary)
 }
 
-pub fn parse_ipfs_path<I>(
-    prefix: Prefix,
-    root: &str,
-    suffix: I,
-) -> impl Future<Item = Path, Error = Error>
-where
-    I: Into<Option<std::path::PathBuf>>,
-{
-    future::result(Root::from_str(root).and_then(|root| {
-        Path::parse(prefix, root, suffix.into()).ok_or(Error::IpfsPathParseError("Parse failed"))
-    }))
-}
-
 pub fn add<P, E>(payload: P, length: Option<u64>) -> impl Future<Item = AddResponse, Error = Error>
 where
     P: Stream<Item = Bytes, Error = E> + 'static,
@@ -224,7 +211,7 @@ pub fn block_get(cid: Cid) -> impl Future<Item = client::ClientResponse, Error =
         })
 }
 
-pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
+pub fn resolve(path: Path) -> impl Future<Item = Root, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
             Ok(url) => {
@@ -252,8 +239,8 @@ pub fn resolve(path: Path) -> impl Future<Item = Cid, Error = Error> {
                 //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
                 // })
                 .and_then(|res: ResolveResponse| match res.path.root {
-                    Root::Cid(cid) => Ok(cid),
-                    Root::DnsLink(_link) => Err(Error::IpfsPathParseError("Expected CID")),
+                    Root::DnsLink(_link) => Err(Error::IpfsPathParseError(PathParseError::ExpectedCid)),
+                    other => Ok(other)
                 })
         })
 }

@@ -1,6 +1,6 @@
-use cid::Cid;
+use failure::Fail;
 use lazy_static::lazy_static;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 
 use std::fmt::{Debug, Display};
@@ -43,7 +43,6 @@ pub struct Error {
 #[serde(rename_all = "PascalCase")]
 pub struct AddResponse {
     pub name: String,
-    #[serde(with = "string")]
     pub hash: Cid,
     pub size: String,
 }
@@ -60,7 +59,6 @@ pub struct KeyListResponse {
 #[serde(rename_all = "PascalCase")]
 pub struct Key {
     pub name: String,
-    #[serde(with = "string")]
     pub id: Cid,
 }
 
@@ -74,7 +72,6 @@ pub struct LsResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectCid {
-    #[serde(with = "string")]
     pub hash: Cid,
     pub links: Vec<Link>,
 }
@@ -83,7 +80,6 @@ pub struct ObjectCid {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectPath {
-    #[serde(with = "string")]
     pub hash: Path,
     pub links: Vec<Link>,
 }
@@ -91,7 +87,6 @@ pub struct ObjectPath {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectResponse {
-    #[serde(with = "string")]
     pub hash: Cid,
 }
 
@@ -100,7 +95,6 @@ pub struct ObjectResponse {
 #[serde(rename_all = "PascalCase")]
 pub struct Link {
     pub name: String,
-    #[serde(with = "string")]
     pub hash: Cid,
     pub size: u64,
     pub Type: i32, // Not sure how to handle this
@@ -109,8 +103,7 @@ pub struct Link {
 impl Into<Path> for Link {
     fn into(self) -> Path {
         Path {
-            prefix: Prefix::Ipfs,
-            root: Root::Cid(self.hash),
+            root: Root::Ipfs(self.hash.0),
             suffix: None,
         }
     }
@@ -120,59 +113,69 @@ impl Into<Path> for Link {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ResolveResponse {
-    #[serde(with = "string")]
     pub path: Path,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum Prefix {
-    Ipfs,
-    Ipns,
-}
+#[derive(Debug, Clone)]
+pub struct Cid(pub cid::Cid);
 
-impl FromStr for Prefix {
-    type Err = crate::error::Error;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "ipfs" => Ok(Prefix::Ipfs),
-            "ipns" => Ok(Prefix::Ipns),
-            _ => Err(crate::error::Error::IpfsPathParseError(
-                "Prefix was neither ipfs nor ipns",
-            )),
+impl<'de> Deserialize<'de> for Cid {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+        use std::fmt;
+        struct CidVisitor;
+        impl<'de> de::Visitor<'de> for CidVisitor {
+            type Value = Cid;
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a string in the format <key> <value>")
+            }
+
+            fn visit_str<E>(self, path_str: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                use cid::ToCid;
+                path_str.to_cid().map(|x| Cid(x)).map_err(de::Error::custom)
+            }
         }
+        deserializer.deserialize_string(CidVisitor)
     }
 }
 
-impl Prefix {
-    pub fn is_dnslink_allowed(&self) -> bool {
-        match *self {
-            Prefix::Ipns => true,
-            _ => false,
-        }
-    }
-}
-
-impl Display for Prefix {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            Prefix::Ipns => write!(f, "ipns"),
-            Prefix::Ipfs => write!(f, "ipfs"),
-        }
-    }
+#[derive(Fail, Debug, Eq, PartialEq)]
+pub enum PathParseError {
+    #[fail(display = "unable to parse cid: {}", _0)]
+    CidError(cid::Error),
+    #[fail(display = "invalid domain: {}", _0)]
+    DnsLinkDomainInvalid(String),
+    #[fail(display = "errors during UTS#46 processing: {}", _0)]
+    DnsLinkUnicodeError(String),
+    #[fail(display = "unable to parse suffix: {}", _0)]
+    SuffixError(std::string::ParseError),
+    #[fail(display = "suffix is not absolute: {}", _0)]
+    SuffixNotAbsolute(String),
+    #[fail(display = "unexpected prefix: {} (must be /ipfs/ or /ipns/)", _0)]
+    UnknownPrefix(String),
+    #[fail(display = "expected cid, got dnslink record")]
+    ExpectedCid,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Root {
-    Cid(cid::Cid),
+    Ipfs(cid::Cid),
+    Ipns(cid::Cid),
     DnsLink(publicsuffix::Domain),
 }
 
 impl Display for Root {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Root::Cid(cid) => write!(f, "{}", cid),
-            Root::DnsLink(domain) => write!(f, "{}", domain),
+            Root::Ipfs(cid) => write!(f, "/ipfs/{}", cid),
+            Root::Ipns(cid) => write!(f, "/ipns/{}", cid),
+            Root::DnsLink(domain) => write!(f, "/ipns/{}", domain),
         }
     }
 }
@@ -182,97 +185,149 @@ lazy_static! {
 }
 
 impl FromStr for Root {
-    type Err = crate::error::Error;
+    type Err = PathParseError;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         use cid::ToCid;
-        if let Ok(cid) = s.to_cid() {
-            Ok(Root::Cid(cid))
-        } else if let Ok(dns_link) = PUBLIC_SUFFIX_LIST.parse_domain(s) {
-            Ok(Root::DnsLink(dns_link))
-        } else {
-            Err(crate::error::Error::IpfsPathParseError(
-                "Root was neither a CID nor DNS record",
-            ))
+        match (s.get(0..6), s.get(6..)) {
+            (Some("/ipfs/"), Some(s)) => {
+                s.to_cid().map(Root::Ipfs).map_err(PathParseError::CidError)
+            }
+            (Some("/ipns/"), Some(s)) => s
+                .to_cid()
+                .map(Root::Ipns)
+                .map_err(PathParseError::CidError)
+                .or_else(|_| {
+                    PUBLIC_SUFFIX_LIST
+                        .parse_domain(s)
+                        .map(Root::DnsLink)
+                        .map_err(|e| {
+                            use publicsuffix::errors::ErrorKind;
+                            match e.0 {
+                                ErrorKind::Uts46(errs) => {
+                                    PathParseError::DnsLinkUnicodeError(format!("{:?}", errs))
+                                }
+                                ErrorKind::InvalidDomain(domain) => {
+                                    PathParseError::DnsLinkDomainInvalid(domain)
+                                }
+                                _ => panic!("unhandled publicsuffix error"),
+                            }
+                        })
+                }),
+            (other, _) => Err(PathParseError::UnknownPrefix(
+                other.unwrap_or_default().to_string(),
+            )),
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Path {
-    pub prefix: Prefix,
     pub root: Root,
     pub suffix: Option<PathBuf>,
 }
 
 impl Path {
-    pub fn ipfs(cid: Cid) -> Self {
+    pub fn ipfs(cid: cid::Cid) -> Self {
         Self {
-            prefix: Prefix::Ipfs,
-            root: Root::Cid(cid),
+            root: Root::Ipfs(cid),
             suffix: None,
         }
     }
+}
 
-    pub fn parse(prefix: Prefix, root: Root, suffix: Option<PathBuf>) -> Option<Self> {
-        if prefix.is_dnslink_allowed() {
-            Self {
-                prefix,
-                root,
-                suffix,
-            }
-            .into()
-        } else if let Root::Cid(cid) = root {
-            Self {
-                prefix,
-                root: Root::Cid(cid),
-                suffix,
-            }
-            .into()
-        } else {
-            None
-        }
+impl FromStr for Path {
+    type Err = PathParseError;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        use path_clean::PathClean;
+        let root_end = s
+            .match_indices('/')
+            .skip(2)
+            .next()
+            .map(|(x, _)| x)
+            .unwrap_or(s.len());
+        let root = Root::from_str(s.get(0..root_end).unwrap_or_default())?;
+        let suffix = s
+            .get(root_end..)
+            .and_then(|x| if x.len() == 0 { None } else { Some(x) })
+            .map(PathBuf::from_str)
+            .map(|res| {
+                res.map(|x| x.clean())
+                    .map_err(PathParseError::SuffixError)
+                    .and_then(|x| {
+                        if x.is_absolute() {
+                            Ok(x)
+                        } else {
+                            Err(PathParseError::SuffixNotAbsolute(
+                                x.to_string_lossy().to_string(),
+                            ))
+                        }
+                    })
+            })
+            .transpose()
+            .map(|x| {
+                if let Some(x) = x {
+                    if x.to_str() == Some("/") {
+                        None
+                    } else {
+                        Some(x)
+                    }
+                } else {
+                    None
+                }
+            })?;
+        Ok(Self { root, suffix })
     }
 }
 
 impl Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "/{}/{}", self.prefix, self.root).and_then(|x| {
-            if let Some(suffix) = &self.suffix {
-                write!(f, "/{}", suffix.display())
-            } else {
-                Ok(x)
-            }
-        })
+        write!(f, "{}", self.root)?;
+        if let Some(suffix) = &self.suffix {
+            write!(f, "{}", suffix.to_string_lossy())
+        } else {
+            Ok(())
+        }
     }
 }
 
-impl FromStr for Path {
-    type Err = crate::error::Error;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let mut it = s.split('/').into_iter();
-        it.next();
-        let prefix = it.next();
-        let root = it.next();
-        let suffix: Option<String> =
-            Some(it.collect()).and_then(|s: String| if s.len() != 0 { Some(s) } else { None });
-        if let (Some(prefix), Some(root)) = (prefix, root) {
-            if let (Ok(prefix), Ok(root)) = (Prefix::from_str(prefix), Root::from_str(root)) {
-                Self::parse(
-                    prefix,
-                    root,
-                    suffix.and_then(|suffix| PathBuf::from_str(&suffix).ok()),
-                )
-                .ok_or(crate::error::Error::IpfsPathParseError("Parse failed"))
-            } else {
-                Err(crate::error::Error::IpfsPathParseError(
-                    "Prefix and root failed",
-                ))
+impl Into<String> for &Path {
+    fn into(self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl Serialize for Path {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s: String = self.into();
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Path {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+        use std::fmt;
+        struct PathVisitor;
+        impl<'de> de::Visitor<'de> for PathVisitor {
+            type Value = Path;
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a string in the format <key> <value>")
             }
-        } else {
-            Err(crate::error::Error::IpfsPathParseError(
-                "No prefix or root possible",
-            ))
+
+            fn visit_str<E>(self, path_str: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Path::from_str(path_str).map_err(de::Error::custom)
+            }
         }
+        deserializer.deserialize_string(PathVisitor)
     }
 }
 
@@ -280,43 +335,78 @@ impl FromStr for Path {
 mod test {
     use super::*;
     #[test]
-    fn ipfs_path_correct() {
+
+    fn root_ipfs_ok() {
+        let ipfs_root_str = format!("/ipfs/{}", EMPTY_FOLDER_HASH);
         assert_eq!(
-            EMPTY_FOLDER_HASH,
-            format!("{}", Root::from_str(EMPTY_FOLDER_HASH).unwrap())
+            ipfs_root_str,
+            Root::from_str(&ipfs_root_str).unwrap().to_string()
         );
-        assert_eq!("ipfs.io", format!("{}", Root::from_str("ipfs.io").unwrap()));
+    }
+
+    #[test]
+
+    fn root_dnslink_ok() {
+        let dnslink_root_str = "/ipns/bootstrap.libp2p.io";
+        assert_eq!(
+            dnslink_root_str,
+            Root::from_str(dnslink_root_str).unwrap().to_string()
+        );
+    }
+
+    #[test]
+
+    fn root_ipns_ok() {
+        let ipns_root_str = "/ipns/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN";
+        assert_eq!(
+            ipns_root_str,
+            Root::from_str(ipns_root_str).unwrap().to_string()
+        );
+    }
+
+    #[test]
+    fn ipfs_path_without_suffix_ok() {
         let path_string = format!("/ipfs/{}", EMPTY_FOLDER_HASH);
         assert_eq!(
             path_string,
-            format!("{}", Path::from_str(&path_string).unwrap())
+            Path::from_str(&path_string).unwrap().to_string()
         );
     }
-}
 
-// TODO: Refactor to implement serialize for IpfsPath
-pub mod string {
-    use std::fmt::Display;
-    use std::str::FromStr;
-
-    use serde::{de, Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        T: Display,
-        S: Serializer,
-    {
-        serializer.collect_str(value)
+    #[test]
+    fn ipfs_path_with_suffix_ok() {
+        let path_string = "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC/spec/ipfs.rs";
+        assert_eq!(
+            path_string,
+            Path::from_str(&path_string).unwrap().to_string()
+        );
     }
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-    where
-        D: Deserializer<'de>,
-        T: FromStr,
-        T::Err: Display,
-    {
-        String::deserialize(deserializer)?
-            .parse()
-            .map_err(de::Error::custom)
+    #[test]
+    fn ipfs_path_with_dot_dot_to_no_suffix_ok() {
+        let path_string =
+            "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC/../spec/ipfs.rs/../../../../../";
+        assert_eq!(
+            "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC",
+            Path::from_str(&path_string).unwrap().to_string(),
+        );
+    }
+
+    #[test]
+    fn ipfs_path_with_invalid_cid_err() {
+        let path_string = "/ipfs/QmSomeHash";
+        assert_eq!(
+            PathParseError::CidError(cid::Error::ParsingError),
+            Path::from_str(&path_string).unwrap_err(),
+        );
+    }
+
+    #[test]
+    fn ipfs_path_with_dot_dot_to_some_suffix_ok() {
+        let path_string = "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC/spec/ipfs.rs/../";
+        assert_eq!(
+            "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC/spec",
+            Path::from_str(&path_string).unwrap().to_string(),
+        );
     }
 }

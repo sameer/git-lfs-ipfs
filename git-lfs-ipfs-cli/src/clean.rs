@@ -54,7 +54,7 @@ impl Actor for Clean {
                         .filter(|x| x.len() != 0),
                     None,
                 )
-                .and_then(|add_response| ipfs::block_get(add_response.hash))
+                .and_then(|add_response| ipfs::block_get(add_response.hash.0))
                 .and_then(|res| {
                     res.body()
                         .map_err(git_lfs_ipfs_lib::error::Error::IpfsApiPayloadError)

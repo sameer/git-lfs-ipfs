@@ -23,7 +23,7 @@ mime = "0.3"
 env_logger = "0.6"
 rand = "0.6"
 bytes = "0.4"
-cid = { git = "https://github.com/sameer/rust-cid", version = "0.3" }
+cid = "0.3" 
 hex = "0.3"
 publicsuffix = "1.5"
 log = "0.4"

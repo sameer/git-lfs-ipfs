@@ -46,7 +46,7 @@ impl Actor for Transfer {
                             .map_err(CliError::SerdeJsonError)
                     })
                 });
-
+        // TODO: Convert to stdin-reading style used in Clean implementation.
         ctx.add_stream(stream::poll_fn(move || -> Poll<Option<Input>, CliError> {
             read_it.next().transpose().map(|x| Async::Ready(x))
         }));
