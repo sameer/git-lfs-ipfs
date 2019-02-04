@@ -79,7 +79,7 @@ mod test {
     use std::str::FromStr;
 
     #[test]
-    fn custom_complete_serializes_correctly() {
+    fn custom_complete_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_complete.json"),
             serde_json::to_string(&Event::Complete(Complete {
@@ -94,7 +94,7 @@ mod test {
         );
     }
     #[test]
-    fn custom_download_serializes_correctly() {
+    fn custom_download_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_download.json"),
             serde_json::to_string(&Event::Download(Download {
@@ -109,7 +109,7 @@ mod test {
     }
 
     #[test]
-    fn custom_init_serializes_correctly() {
+    fn custom_init_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_init.json"),
             serde_json::to_string(&Event::Init(Init {
@@ -123,7 +123,7 @@ mod test {
     }
 
     #[test]
-    fn custom_progress_serializes_correctly() {
+    fn custom_progress_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_progress.json"),
             serde_json::to_string(&Event::Progress(Progress {
@@ -136,7 +136,7 @@ mod test {
     }
 
     #[test]
-    fn custom_terminate_serializes_correctly() {
+    fn custom_terminate_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_terminate.json"),
             serde_json::to_string(&Event::Terminate).unwrap(),
@@ -144,7 +144,7 @@ mod test {
     }
 
     #[test]
-    fn custom_upload_serializes_correctly() {
+    fn custom_upload_serializes_ok() {
         assert_eq!(
             include_str!("../test/custom_upload.json"),
             serde_json::to_string(&Event::Upload(Upload {

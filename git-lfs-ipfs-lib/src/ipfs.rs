@@ -1,4 +1,4 @@
-use actix_web::{client, dev::HttpResponseBuilder, http::header, HttpMessage, HttpResponse};
+use actix_web::{client::{self, ClientResponse}, dev::HttpResponseBuilder, http::header, HttpMessage, HttpResponse};
 use bytes::Bytes;
 use cid::Cid;
 use futures::{future, prelude::*};
@@ -106,10 +106,13 @@ where
         .and_then(|res| {
             res.json()
                 .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+        }).and_then(|res: Result<AddResponse>| {
+            let res: std::result::Result<AddResponse, Error> = res.into();
+            res
         })
 }
 
-pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get(path: Path) -> impl Future<Item = ClientResponse, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
             let mut url = url.join("api/v0/get").unwrap();
@@ -126,21 +129,21 @@ pub fn get(path: Path) -> impl Future<Item = HttpResponse, Error = Error> {
                 .map_err(|err| Error::IpfsApiSendRequestError(err))
         })
         // TODO: Handle json error responses
-        .and_then(|res| {
-            // if res.status().is_success() {
-            let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
-            res.headers()
-                .iter()
-                .filter(|(h, _)| *h != "connection")
-                .for_each(|(k, v)| {
-                    proxy_res.header(k.clone(), v.clone());
-                });
-            Ok(proxy_res.streaming(res.payload()))
-            // }
-            // else {
-            //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
-            // }
-        })
+        // .and_then(|res| {
+        //     // if res.status().is_success() {
+        //     let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+        //     res.headers()
+        //         .iter()
+        //         .filter(|(h, _)| *h != "connection")
+        //         .for_each(|(k, v)| {
+        //             proxy_res.header(k.clone(), v.clone());
+        //         });
+        //     Ok(res.payload())
+        //     // }
+        //     // else {
+        //     //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+        //     // }
+        // })
 }
 
 pub fn block_get_to_fs(
@@ -172,7 +175,7 @@ pub fn block_get_to_fs(
         .flatten()
 }
 
-pub fn cat(path: Path) -> impl Future<Item = client::ClientResponse, Error = Error> {
+pub fn cat(path: Path) -> impl Future<Item = ClientResponse, Error = Error> {
     ipfs_api_url()
         .then(move |url| match url {
             Ok(url) => {
@@ -193,7 +196,7 @@ pub fn cat(path: Path) -> impl Future<Item = client::ClientResponse, Error = Err
         })
 }
 
-pub fn block_get(cid: Cid) -> impl Future<Item = client::ClientResponse, Error = Error> {
+pub fn block_get(cid: Cid) -> impl Future<Item = ClientResponse, Error = Error> {
     ipfs_api_url()
         .map(move |url| {
             let mut url = url.join("api/v0/block/get").unwrap();
