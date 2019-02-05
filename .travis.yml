@@ -21,13 +21,14 @@ rust:
 
 before_script:
   - export PATH=$HOME/.cargo/bin:$PATH
+  - export PATH=$HOME/kcov-master:$PATH
   - cargo install cargo-update || echo "cargo-update already installed"
   - cargo install cargo-travis || echo "cargo-travis already installed"
   - cargo install-update -a # update outdated cached binaries
 script:
   - cargo test
 after_success:
-  - cargo coveralls
+  - cargo coveralls --kcov-build-location $HOME
 
 before_cache:
   - rm -rf /home/travis/.cargo/registry
