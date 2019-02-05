@@ -130,7 +130,7 @@ impl<'de> Deserialize<'de> for Cid {
         impl<'de> de::Visitor<'de> for CidVisitor {
             type Value = Cid;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a string in the format <key> <value>")
+                write!(formatter, "a string that can be converted to a Cid")
             }
 
             fn visit_str<E>(self, path_str: &str) -> std::result::Result<Self::Value, E>
@@ -317,7 +317,7 @@ impl<'de> Deserialize<'de> for Path {
         impl<'de> de::Visitor<'de> for PathVisitor {
             type Value = Path;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a string in the format <key> <value>")
+                write!(formatter, "a string that can be converted to a Path")
             }
 
             fn visit_str<E>(self, path_str: &str) -> std::result::Result<Self::Value, E>
@@ -335,7 +335,6 @@ impl<'de> Deserialize<'de> for Path {
 mod test {
     use super::*;
     #[test]
-
     fn root_ipfs_ok() {
         let ipfs_root_str = format!("/ipfs/{}", EMPTY_FOLDER_HASH);
         assert_eq!(
@@ -345,7 +344,6 @@ mod test {
     }
 
     #[test]
-
     fn root_dnslink_ok() {
         let dnslink_root_str = "/ipns/bootstrap.libp2p.io";
         assert_eq!(
@@ -355,7 +353,25 @@ mod test {
     }
 
     #[test]
+    fn root_dnslink_with_invalid_domain_err() {
+        let dnslink_root_str = "/ipns/notadomain.123$$$%@";
+        assert_eq!(
+            PathParseError::DnsLinkDomainInvalid("notadomain.123$$$%@".to_string()),
+            Root::from_str(dnslink_root_str).unwrap_err()
+        );
+    }
 
+
+    #[test]
+    fn root_dnslink_with_non_uts46_conformant_err() {
+        let dnslink_root_str = "/ipns/Ⅎ.com";
+        assert_eq!(
+            PathParseError::DnsLinkDomainInvalid("Ⅎ.com".to_string()),
+            Root::from_str(dnslink_root_str).unwrap_err()
+        );
+    }
+
+    #[test]
     fn root_ipns_ok() {
         let ipns_root_str = "/ipns/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN";
         assert_eq!(
@@ -437,7 +453,9 @@ mod test {
         use cid::ToCid;
         let expect = Result::<AddResponse>::Ok(AddResponse {
             name: "empty".to_string(),
-            hash: Cid("QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH".to_cid().unwrap()),
+            hash: Cid("QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH"
+                .to_cid()
+                .unwrap()),
             size: "6".to_string(),
         });
 
@@ -446,6 +464,24 @@ mod test {
                 "./test/ipfs_result_ok_add_response.json"
             ))
             .unwrap(),
+            expect,
+        );
+    }
+
+    #[test]
+    fn ipfs_key_list_response_der_ok() {
+        use cid::ToCid;
+        let expect = KeyListResponse {
+            keys: vec![Key {
+                name: "self".to_string(),
+                id: Cid("QmcEiVtvhFAKDqA7ZVSDYwR6AMVoKNwuhTwcX7rdqF5AN5"
+                    .to_cid()
+                    .unwrap()),
+            }],
+        };
+
+        assert_eq!(
+            serde_json::from_str::<'static, KeyListResponse>(include_str!("./test/ipfs_key_list_response.json")).unwrap(),
             expect,
         );
     }
