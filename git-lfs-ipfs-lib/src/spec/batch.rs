@@ -82,7 +82,7 @@ impl ObjectResponse {
         ObjectResponse::Success {
             object,
             authenticated: None,
-            actions: actions,
+            actions,
         }
     }
 

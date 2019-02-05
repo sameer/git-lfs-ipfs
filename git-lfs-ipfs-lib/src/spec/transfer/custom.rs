@@ -65,10 +65,10 @@ pub struct Progress {
 #[serde(tag = "event", rename_all = "lowercase")]
 pub enum Event {
     Init(Init),
-    Upload(Upload),
-    Download(Download),
-    Complete(Complete),
-    Progress(Progress),
+    Upload(Box<Upload>),
+    Download(Box<Download>),
+    Complete(Box<Complete>),
+    Progress(Box<Progress>),
     /// https://github.com/git-lfs/git-lfs/blob/master/docs/custom-transfers.md#stage-3-finish--cleanup
     Terminate,
 }
@@ -89,7 +89,7 @@ mod test {
                     message: "Explain what happened to this transfer".to_string()
                 }),
                 path: None,
-            }))
+            }.into()))
             .unwrap(),
         );
     }
@@ -103,7 +103,7 @@ mod test {
                         .to_string(),
                     size: 21245,
                 }
-            }))
+            }.into()))
             .unwrap(),
         );
     }
@@ -130,7 +130,7 @@ mod test {
                 oid: "22ab5f63670800cc7be06dbed816012b0dc411e774754c7579467d2536a9cf3e".to_string(),
                 bytes_so_far: 1234,
                 bytes_since_last: 64,
-            }))
+            }.into()))
             .unwrap(),
         );
     }
@@ -154,7 +154,7 @@ mod test {
                     size: 346232
                 },
                 path: std::path::PathBuf::from_str("/path/to/file.png").unwrap()
-            }))
+            }.into()))
             .unwrap(),
         );
     }

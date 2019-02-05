@@ -138,7 +138,7 @@ impl<'de> Deserialize<'de> for Cid {
                 E: de::Error,
             {
                 use cid::ToCid;
-                path_str.to_cid().map(|x| Cid(x)).map_err(de::Error::custom)
+                path_str.to_cid().map(Cid).map_err(de::Error::custom)
             }
         }
         deserializer.deserialize_string(CidVisitor)
@@ -241,14 +241,13 @@ impl FromStr for Path {
         use path_clean::PathClean;
         let root_end = s
             .match_indices('/')
-            .skip(2)
-            .next()
+            .nth(2)
             .map(|(x, _)| x)
-            .unwrap_or(s.len());
+            .unwrap_or_else(|| s.len());
         let root = Root::from_str(s.get(0..root_end).unwrap_or_default())?;
         let suffix = s
             .get(root_end..)
-            .and_then(|x| if x.len() == 0 { None } else { Some(x) })
+            .and_then(|x| if x.is_empty() { None } else { Some(x) })
             .map(PathBuf::from_str)
             .map(|res| {
                 res.map(|x| x.clean())
@@ -360,7 +359,6 @@ mod test {
             Root::from_str(dnslink_root_str).unwrap_err()
         );
     }
-
 
     #[test]
     fn root_dnslink_with_non_uts46_conformant_err() {
@@ -481,7 +479,10 @@ mod test {
         };
 
         assert_eq!(
-            serde_json::from_str::<'static, KeyListResponse>(include_str!("./test/ipfs_key_list_response.json")).unwrap(),
+            serde_json::from_str::<'static, KeyListResponse>(include_str!(
+                "./test/ipfs_key_list_response.json"
+            ))
+            .unwrap(),
             expect,
         );
     }

@@ -48,7 +48,7 @@ impl Actor for Transfer {
                 });
         // TODO: Convert to stdin-reading style used in Clean implementation.
         ctx.add_stream(stream::poll_fn(move || -> Poll<Option<Input>, CliError> {
-            read_it.next().transpose().map(|x| Async::Ready(x))
+            read_it.next().transpose().map(Async::Ready)
         }));
     }
 }
@@ -57,7 +57,7 @@ impl StreamHandler<Input, CliError> for Transfer {
     fn handle(&mut self, event: Input, ctx: &mut <Self as Actor>::Context) {
         match (self.engine.clone(), event) {
             (None, Input(custom::Event::Init(init))) => {
-                self.engine = Some(Engine::new(ctx.address(), init).start());
+                self.engine = Some(Engine::new(init).start());
                 println!("{{}}");
             }
             (None, event) => {
@@ -101,28 +101,22 @@ impl StreamHandler<Input, CliError> for Transfer {
 impl Handler<Output> for Transfer {
     type Result = <Output as Message>::Result;
 
-    fn handle(&mut self, res: Output, ctx: &mut <Self as Actor>::Context) -> Self::Result {
-        match res {
-            Output(event) => {
-                println!(
-                    "{}",
-                    serde_json::to_string(&event).expect("Failed to serialize an event")
-                );
-            }
-            _ => {}
-        }
+    fn handle(&mut self, event: Output, ctx: &mut <Self as Actor>::Context) -> Self::Result {
+        println!(
+            "{}",
+            serde_json::to_string(&event.0).expect("Failed to serialize an event")
+        );
         Ok(())
     }
 }
 
 struct Engine {
-    transfer: actix::Addr<Transfer>,
     init: custom::Init,
 }
 
 impl Engine {
-    fn new(transfer: actix::Addr<Transfer>, init: custom::Init) -> Self {
-        Self { transfer, init }
+    fn new(init: custom::Init) -> Self {
+        Self { init }
     }
 }
 
@@ -135,15 +129,20 @@ impl Handler<Input> for Engine {
     fn handle(&mut self, event: Input, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         match (event.0, &self.init.operation) {
             (custom::Event::Download(download), custom::Operation::Download) => {
-                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid).wait().ok();
+                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid)
+                    .wait()
+                    .ok();
                 if let Some(cid) = cid {
                     let oid = download.object.oid.clone();
                     let mut output = std::env::current_dir().unwrap();
                     output.push(&download.object.oid);
                     Box::new(
                         actix::fut::wrap_stream(
-                            ipfs::block_get_to_fs(spec::ipfs::Path::ipfs(cid.clone()), output.clone())
-                                .map_err(CliError::IpfsApiError),
+                            ipfs::block_get_to_fs(
+                                spec::ipfs::Path::ipfs(cid.clone()),
+                                output.clone(),
+                            )
+                            .map_err(CliError::IpfsApiError),
                         )
                         .fold(0, move |mut bytes_so_far, x, actor: &mut Self, ctx| {
                             bytes_so_far += x as u64;
@@ -153,7 +152,7 @@ impl Handler<Input> for Engine {
                                     oid: oid.clone(),
                                     bytes_so_far,
                                     bytes_since_last: x as u64,
-                                }))
+                                }.into()))
                                 .expect("Failed to serialize an event")
                             );
                             // TODO: Don't disobey actix style and just print events here, there must be a better way...
@@ -173,7 +172,7 @@ impl Handler<Input> for Engine {
                                 oid: download.object.oid.clone(),
                                 error: None,
                                 path: Some(output),
-                            }))
+                            }.into()))
                         }),
                     )
                 } else {
@@ -185,7 +184,7 @@ impl Handler<Input> for Engine {
                                 message: "Object not found".to_string(),
                             }),
                             path: None,
-                        }),
+                        }.into()),
                     ))))
                 }
             }
@@ -197,7 +196,7 @@ impl Handler<Input> for Engine {
                         oid: upload.object.oid,
                         error: None,
                         path: None,
-                    }),
+                    }.into()),
                 ))))
             }
             (event, _) => Box::new(actix::fut::wrap_future::<_, Self>(future::err(

@@ -1,4 +1,8 @@
-use actix_web::{client::{self, ClientResponse}, dev::HttpResponseBuilder, http::header, HttpMessage, HttpResponse};
+use actix_web::{
+    client::{self, ClientResponse},
+    http::header,
+    HttpMessage,
+};
 use bytes::Bytes;
 use cid::Cid;
 use futures::{future, prelude::*};
@@ -8,7 +12,6 @@ use url::Url;
 
 use std::io::Write;
 use std::iter::FromIterator;
-use std::str::FromStr;
 use std::time::Duration;
 
 use crate::error::Error;
@@ -101,12 +104,10 @@ where
             client
                 .send()
                 .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
-        .and_then(|res| {
-            res.json()
-                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
-        }).and_then(|res: Result<AddResponse>| {
+        .and_then(|res| res.json().map_err(Error::IpfsApiJsonPayloadError))
+        .and_then(|res: Result<AddResponse>| {
             let res: std::result::Result<AddResponse, Error> = res.into();
             res
         })
@@ -126,24 +127,24 @@ pub fn get(path: Path) -> impl Future<Item = ClientResponse, Error = Error> {
                 .unwrap()
                 .send()
                 .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
-        // TODO: Handle json error responses
-        // .and_then(|res| {
-        //     // if res.status().is_success() {
-        //     let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
-        //     res.headers()
-        //         .iter()
-        //         .filter(|(h, _)| *h != "connection")
-        //         .for_each(|(k, v)| {
-        //             proxy_res.header(k.clone(), v.clone());
-        //         });
-        //     Ok(res.payload())
-        //     // }
-        //     // else {
-        //     //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
-        //     // }
-        // })
+    // TODO: Handle json error responses
+    // .and_then(|res| {
+    //     // if res.status().is_success() {
+    //     let mut proxy_res: HttpResponseBuilder = HttpResponse::build(res.status());
+    //     res.headers()
+    //         .iter()
+    //         .filter(|(h, _)| *h != "connection")
+    //         .for_each(|(k, v)| {
+    //             proxy_res.header(k.clone(), v.clone());
+    //         });
+    //     Ok(res.payload())
+    //     // }
+    //     // else {
+    //     //     Err(res.json().map_err(|err| Error::IpfsApiJsonPayloadError(err)))
+    //     // }
+    // })
 }
 
 pub fn block_get_to_fs(
@@ -230,20 +231,17 @@ pub fn resolve(path: Path) -> impl Future<Item = Root, Error = Error> {
             client
                 .send()
                 .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
-                .and_then(|res| {
-                    res.json().map_err(|err| {
-                        error!("{:?}", err);
-                        Error::IpfsApiJsonPayloadError(err)
-                    })
-                })
+                .map_err(Error::IpfsApiSendRequestError)
+                .and_then(|res| res.json().map_err(Error::IpfsApiJsonPayloadError))
                 // .and_then(|res: Result<ResolveResponse>| match res {
                 //     Result::Ok(res) => Ok(res),
                 //     Result::Err(err) => Err(Error::IpfsApiResponseError(err)),
                 // })
                 .and_then(|res: ResolveResponse| match res.path.root {
-                    Root::DnsLink(_link) => Err(Error::IpfsPathParseError(PathParseError::ExpectedCid)),
-                    other => Ok(other)
+                    Root::DnsLink(_link) => {
+                        Err(Error::IpfsPathParseError(PathParseError::ExpectedCid))
+                    }
+                    other => Ok(other),
                 })
         })
 }
@@ -295,11 +293,11 @@ pub fn object_patch_link(
         .and_then(|client| {
             client
                 .send()
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
         .and_then(|res| {
             res.json()
-                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+                .map_err(Error::IpfsApiJsonPayloadError)
         })
     // .and_then(|res: Result<ObjectResponse>| match res {
     //     Result::Ok(res) => Ok(res),
@@ -326,16 +324,16 @@ pub fn name_publish(cid: Cid, key: Key) -> impl Future<Item = String, Error = Er
             client
                 .send()
                 .timeout(Duration::from_secs(600))
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
-        .and_then(|res| res.body().map_err(|err| Error::IpfsApiPayloadError(err)))
+        .and_then(|res| res.body().map_err(Error::IpfsApiPayloadError))
         .map(|bytes: Bytes| String::from_utf8_lossy(&bytes).to_string())
 }
 
 pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
     ipfs_api_url()
         .map(|url| {
-            let mut url = url.join("api/v0/key/list").unwrap();
+            let url = url.join("api/v0/key/list").unwrap();
             debug!("Sending key list request to {}", url);
             url
         })
@@ -343,11 +341,11 @@ pub fn key_list() -> impl Future<Item = KeyListResponse, Error = Error> {
         .and_then(|client| {
             client
                 .send()
-                .map_err(|err| Error::IpfsApiSendRequestError(err))
+                .map_err(Error::IpfsApiSendRequestError)
         })
         .and_then(|res| {
             res.json()
-                .map_err(|err| Error::IpfsApiJsonPayloadError(err))
+                .map_err(Error::IpfsApiJsonPayloadError)
         })
     // .and_then(|res: Result<KeyListResponse>| match res {
     //     Result::Ok(res) => Ok(res),

@@ -5,7 +5,7 @@ use actix_web::HttpMessage;
 use futures::{future, prelude::*, sync::mpsc};
 
 use crate::error::CliError;
-use git_lfs_ipfs_lib::{ipfs, spec};
+use git_lfs_ipfs_lib::ipfs;
 
 pub struct Clean {
     raw_block_data: Option<Result<bytes::Bytes, CliError>>,
@@ -31,7 +31,7 @@ impl Actor for Clean {
                 let mut should_break = false;
                 if let Ok(buf) = &buf {
                     lock.consume(buf.len());
-                    if buf.len() == 0 {
+                    if buf.is_empty() {
                         should_break = true
                     }
                 } else {
@@ -51,7 +51,7 @@ impl Actor for Clean {
             actix::fut::wrap_future(
                 ipfs::add(
                     rx.then(|x| x.expect("mpsc unwrap panicked, but never should"))
-                        .filter(|x| x.len() != 0),
+                        .filter(|x| x.is_empty()),
                     None,
                 )
                 .and_then(|add_response| ipfs::block_get(add_response.hash.0))
