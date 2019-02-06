@@ -51,7 +51,7 @@ impl Actor for Clean {
             actix::fut::wrap_future(
                 ipfs::add(
                     rx.then(|x| x.expect("mpsc unwrap panicked, but never should"))
-                        .filter(|x| x.is_empty()),
+                        .filter(|x| !x.is_empty()),
                     None,
                 )
                 .and_then(|add_response| ipfs::block_get(add_response.hash.0))
