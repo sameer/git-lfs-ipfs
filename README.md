@@ -1,6 +1,6 @@
 # git-lfs-ipfs
 
-Working git-lfs custom transfer and extension implementations to use IPFS as storage.
+A [git-lfs](https://git-lfs.github.com/) custom transfer & extension implementation that makes using IPFS for storage easy.
 
 [![Build Status](https://travis-ci.org/sameer/git-lfs-ipfs.svg?branch=master)](https://travis-ci.org/sameer/git-lfs-ipfs)
 
@@ -11,7 +11,7 @@ Working git-lfs custom transfer and extension implementations to use IPFS as sto
 ### Building
 
 ```bash
-git clone git@github.com:sameer/git-lfs-ipfs.git
+git clone https://github.com/sameer/git-lfs-ipfs
 cd git-lfs-ipfs/git-lfs-ipfs-cli
 cargo build --release
 ```
@@ -36,7 +36,7 @@ Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
     priority = 0
 ```
 
-**Note that git-lfs-ipfs will be enabled by default for all future LFS usage if you add these lines to your configuration.**
+**Note that git-lfs-ipfs will be enabled by default for all future LFS usage if you add these lines to your configuration. Make sure to remove them if you do not wish to do so.**
 
 ## Demo
 
@@ -46,4 +46,5 @@ A demo repository is available to test out your installation: [sameer/git-lfs-ip
 
 Use git LFS like you usually do and all subsequent files added in LFS will be added to IPFS.
 
-Currently files already on S3, etc. cannot be read unless you remove the `[lfs "customtransfer.ipfs"]` entry in `~/.gitconfig`, because the IPFS custom transfer overrides your default transfer.
+Files already on S3, etc. cannot be read unless you remove the `[lfs "customtransfer.ipfs"]` entry in your `~/.gitconfig`; the custom transfer overrides your default transfer so that a file is never uploaded to a remote server.
+
