@@ -16,6 +16,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate url;
 extern crate url_serde;
+extern crate ipfs_api;
 
 extern crate git_lfs_ipfs_lib;
 
