@@ -40,7 +40,7 @@ Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
 
 ## Demo
 
-A demo repository is available to test out your installation: [sameer/git-lfs-ipfs-demo](https://github.com/sameer/git-lfs-ipfs-demo).
+A demo repository is available to test out your installation: [sameer/git-lfs-ipfs-demo](https://github.com/sameer/git-lfs-ipfs-demo). Simply clone it once you configure git-lfs-ipfs and verify that no errors occur.
 
 ## Usage
 
