@@ -1,6 +1,6 @@
 use failure::Fail;
 
-use git_lfs_ipfs_lib::{error, spec::transfer::custom};
+use git_lfs_ipfs_lib::{spec::transfer::custom};
 
 #[derive(Fail, Debug)]
 pub enum CliError {
@@ -11,5 +11,5 @@ pub enum CliError {
     #[fail(display = "Input was an unexpected event {:?}", _0)]
     UnexpectedEvent(custom::Event),
     #[fail(display = "Error with a request to the IPFS API {:?}", _0)]
-    IpfsApiError(error::Error),
+    IpfsApiError(ipfs_api::response::Error),
 }

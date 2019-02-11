@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 use actix::prelude::*;
 use futures::{future, prelude::*, stream};
@@ -134,25 +134,31 @@ impl Handler<Input> for Engine {
                     .ok();
                 if let Some(cid) = cid {
                     let oid = download.object.oid.clone();
-                    let mut output = std::env::current_dir().unwrap();
-                    output.push(&download.object.oid);
+                    let mut output_path = std::env::current_dir().unwrap();
+                    output_path.push(&download.object.oid);
+                    let mut output = std::fs::File::create(&output_path).unwrap();
+
                     Box::new(
                         actix::fut::wrap_stream(
-                            ipfs::block_get_to_fs(
-                                spec::ipfs::Path::ipfs(cid.clone()),
-                                output.clone(),
-                            )
-                            .map_err(CliError::IpfsApiError),
+                            ipfs_api::IpfsClient::default()
+                                .block_get(&spec::ipfs::Path::ipfs(cid.clone()).to_string())
+                                .map_err(CliError::IpfsApiError)
+                                .and_then(move |x| {
+                                    output.write_all(&x).map(|_| x.len()).map_err(CliError::Io)
+                                }),
                         )
                         .fold(0, move |mut bytes_so_far, x, actor: &mut Self, ctx| {
                             bytes_so_far += x as u64;
                             println!(
                                 "{}",
-                                serde_json::to_string(&custom::Event::Progress(custom::Progress {
-                                    oid: oid.clone(),
-                                    bytes_so_far,
-                                    bytes_since_last: x as u64,
-                                }.into()))
+                                serde_json::to_string(&custom::Event::Progress(
+                                    custom::Progress {
+                                        oid: oid.clone(),
+                                        bytes_so_far,
+                                        bytes_since_last: x as u64,
+                                    }
+                                    .into()
+                                ))
                                 .expect("Failed to serialize an event")
                             );
                             // TODO: Don't disobey actix style and just print events here, there must be a better way...
@@ -168,37 +174,44 @@ impl Handler<Input> for Engine {
                             actix::fut::ok(bytes_so_far)
                         })
                         .map(move |_, _, _| {
-                            Output(custom::Event::Complete(custom::Complete {
-                                oid: download.object.oid.clone(),
-                                error: None,
-                                path: Some(output),
-                            }.into()))
+                            Output(custom::Event::Complete(
+                                custom::Complete {
+                                    oid: download.object.oid.clone(),
+                                    error: None,
+                                    path: Some(output_path),
+                                }
+                                .into(),
+                            ))
                         }),
                     )
                 } else {
                     Box::new(actix::fut::wrap_future::<_, Self>(future::ok(Output(
-                        custom::Event::Complete(custom::Complete {
-                            oid: download.object.oid.clone(),
-                            error: Some(custom::Error {
-                                code: 404,
-                                message: "Object not found".to_string(),
-                            }),
-                            path: None,
-                        }.into()),
+                        custom::Event::Complete(
+                            custom::Complete {
+                                oid: download.object.oid.clone(),
+                                error: Some(custom::Error {
+                                    code: 404,
+                                    message: "Object not found".to_string(),
+                                }),
+                                path: None,
+                            }
+                            .into(),
+                        ),
                     ))))
                 }
             }
             // Upload transfer is dummy, the smudge filter adds files to IPFS already
             // TODO: just check the sha256 hash with a /api/v0/block/get
-            (custom::Event::Upload(upload), custom::Operation::Upload) => {
-                Box::new(actix::fut::wrap_future::<_, Self>(future::ok(Output(
-                    custom::Event::Complete(custom::Complete {
+            (custom::Event::Upload(upload), custom::Operation::Upload) => Box::new(
+                actix::fut::wrap_future::<_, Self>(future::ok(Output(custom::Event::Complete(
+                    custom::Complete {
                         oid: upload.object.oid,
                         error: None,
                         path: None,
-                    }.into()),
-                ))))
-            }
+                    }
+                    .into(),
+                )))),
+            ),
             (event, _) => Box::new(actix::fut::wrap_future::<_, Self>(future::err(
                 CliError::UnexpectedEvent(event),
             ))),
