@@ -67,15 +67,12 @@ impl StreamHandler<Input, CliError> for Transfer {
                 panic!(CliError::UnexpectedEvent(custom::Event::Init(init)));
             }
             (Some(_), Input(custom::Event::Terminate)) => {
-                debug!("Stopping system");
                 System::current().stop();
             }
             (Some(engine), event) => {
-                debug!("Sending event {:?}", event);
                 ctx.wait(actix::fut::wrap_future(engine.send(event.clone())).then(
                     move |res, actor: &mut Self, ctx| match res.unwrap() {
                         Ok(response) => {
-                            debug!("Received response {:?}", response);
                             println!(
                                 "{}",
                                 serde_json::to_string(&response.0s)
@@ -129,9 +126,7 @@ impl Handler<Input> for Engine {
     fn handle(&mut self, event: Input, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         match (event.0, &self.init.operation) {
             (custom::Event::Download(download), custom::Operation::Download) => {
-                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid)
-                    .wait()
-                    .ok();
+                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid).ok();
                 if let Some(cid) = cid {
                     let oid = download.object.oid.clone();
                     let mut output_path = std::env::current_dir().unwrap();

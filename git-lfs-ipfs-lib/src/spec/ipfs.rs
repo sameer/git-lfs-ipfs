@@ -21,15 +21,6 @@ pub enum Result<T: Debug + PartialEq> {
     Err(Error),
 }
 
-impl<T: Debug + PartialEq> Into<std::result::Result<T, crate::error::Error>> for Result<T> {
-    fn into(self) -> std::result::Result<T, crate::error::Error> {
-        match self {
-            Result::Ok(t) => Ok(t),
-            Result::Err(err) => Err(crate::error::Error::IpfsApiResponseError(err)),
-        }
-    }
-}
-
 #[derive(Deserialize, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Error {

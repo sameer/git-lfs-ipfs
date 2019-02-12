@@ -1,4 +1,3 @@
-use actix_web::http::StatusCode;
 use chrono::{DateTime, FixedOffset};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -109,20 +108,20 @@ pub struct ObjectError {
 impl ObjectError {
     pub fn DoesNotExist() -> Self {
         Self {
-            code: StatusCode::NOT_FOUND.as_u16(),
+            code: 404u16,
             message: "Object does not exist",
         }
     }
 
     pub fn RemovedByOwner() -> Self {
         Self {
-            code: StatusCode::GONE.as_u16(),
+            code: 410u16,
             message: "Object removed by owner",
         }
     }
     pub fn ValidationError() -> Self {
         Self {
-            code: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
+            code: 422u16,
             message: "Validation error",
         }
     }
@@ -170,7 +169,7 @@ pub struct LfsErrorResponse {
     documentation_url: Option<Url>,
     request_id: Option<String>,
     #[serde(skip)]
-    status: StatusCode,
+    status: u16,
 }
 
 impl LfsErrorResponse {
@@ -178,32 +177,33 @@ impl LfsErrorResponse {
         message: "The Accept header needs to be `application/vnd.git-lfs+json`.",
         documentation_url: None,
         request_id: None,
-        status: StatusCode::NOT_ACCEPTABLE,
+        status: 406u16,
     };
     const RATE_LIMIT_HIT: Self = Self {
         message: "A rate limit has been hit with the server.",
         documentation_url: None,
         request_id: None,
-        status: StatusCode::TOO_MANY_REQUESTS,
+        status: 429u16,
     };
     const NOT_IMPLEMENTED: Self = Self {
         message: "The server has not implemented the current method.",
         documentation_url: None,
         request_id: None,
-        status: StatusCode::NOT_IMPLEMENTED,
+        status: 501u16,
     };
     const INSUFFICIENT_STORAGE: Self = Self {
         message: "The server has insufficient storage capacity to complete the request.",
         documentation_url: None,
         request_id: None,
-        status: StatusCode::INSUFFICIENT_STORAGE,
+        status: 507u16,
     };
-    // const BANDWIDTH_LIMIT_EXCEEDED: Self = Self {
-    //     message: "A bandwidth limit has been exceeded.",
-    //     documentation_url: None,
-    //     request_id: None,
-    //     status: StatusCode::from_u16(509).unwrap(),
-    // };
+
+    const BANDWIDTH_LIMIT_EXCEEDED: Self = Self {
+        message: "A bandwidth limit has been exceeded.",
+        documentation_url: None,
+        request_id: None,
+        status: 509u16,
+    };
 }
 
 #[cfg(test)]
@@ -268,7 +268,7 @@ mod test {
                     .unwrap()
                     .into(),
                 request_id: Some("123".to_string()),
-                status: StatusCode::NOT_FOUND
+                status: 404u16
             })
             .unwrap(),
         );
