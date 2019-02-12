@@ -256,7 +256,7 @@ impl FromStr for Path {
             .transpose()
             .map(|x| {
                 if let Some(x) = x {
-                    if x.to_str() == Some("/") {
+                    if x.parent().is_none() {
                         None
                     } else {
                         Some(x)
