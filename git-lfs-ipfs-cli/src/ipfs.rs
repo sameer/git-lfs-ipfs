@@ -17,6 +17,7 @@ lazy_static! {
     static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
 
+// Assuming that the sha256 hash is for a Qmhash
 pub fn sha256_to_cid(codec: cid::Codec, sha256_str: &str) -> Option<cid::Cid> {
     hex::decode(sha256_str).ok().and_then(|digest| {
         if digest.len() != 32 {
