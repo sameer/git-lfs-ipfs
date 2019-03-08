@@ -1,24 +1,16 @@
 [package]
-name = "git-lfs-ipfs-lib"
+name = "git-lfs-spec"
 version = "0.1.0"
 authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
-serde = "1.0"
-serde_derive = "1.0"
-lazy_static = "1.2"
+serde = "1"
+serde_derive = "1"
 url = "1.7"
 url_serde = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
-failure = "0.1"
-cid = "0.3"
-hex = "0.3"
-publicsuffix = "1.5"
-multihash = "0.8"
-idna = "0.1"
-path-clean = "0.1.0"
 
 [dev-dependencies]
 pretty_assertions = "0.5"
-serde_json = "1.0"
+serde_json = "1"

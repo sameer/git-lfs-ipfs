@@ -1,11 +1,10 @@
 use failure::Fail;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_derive::{Deserialize, Serialize};
-
-use std::fmt::{Debug, Display};
-use std::path::PathBuf;
+use std::fmt::Display;
 use std::str::FromStr;
+use std::path::PathBuf;
+use url::Url;
 
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
 
@@ -14,126 +13,22 @@ lazy_static! {
         Path::from_str("/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn").unwrap();
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
-#[serde(untagged)]
-pub enum Result<T: Debug + PartialEq> {
-    Ok(T),
-    Err(Error),
+lazy_static! {
+    static ref IPFS_PUBLIC_API_URL: Url = Url::parse("https://ipfs.io/").unwrap();
 }
 
-#[derive(Deserialize, Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct Error {
-    message: String,
-    code: u64,
-    Type: String,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-add
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct AddResponse {
-    pub name: String,
-    pub hash: Cid,
-    pub size: String,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-key-list
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct KeyListResponse {
-    pub keys: Vec<Key>,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-key-list
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct Key {
-    pub name: String,
-    pub id: Cid,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-ls
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct LsResponse {
-    pub objects: Vec<ObjectPath>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct ObjectCid {
-    pub hash: Cid,
-    pub links: Vec<Link>,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-ls
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct ObjectPath {
-    pub hash: Path,
-    pub links: Vec<Link>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct ObjectResponse {
-    pub hash: Cid,
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-object-links
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct Link {
-    pub name: String,
-    pub hash: Cid,
-    pub size: u64,
-    pub Type: i32, // Not sure how to handle this
-}
-
-impl Into<Path> for Link {
-    fn into(self) -> Path {
-        Path {
-            root: Root::Ipfs(self.hash.0),
-            suffix: None,
+pub fn sha256_to_cid(codec: cid::Codec, sha256_str: &str) -> Option<cid::Cid> {
+    hex::decode(sha256_str).ok().and_then(|digest| {
+        if digest.len() != 32 {
+            None
+        } else {
+            let mut mh = [0u8; 34];
+            mh[0] = multihash::Hash::SHA2256.code();
+            mh[1] = multihash::Hash::SHA2256.size();
+            digest.iter().enumerate().for_each(|(i, x)| mh[i + 2] = *x);
+            Some(cid::Cid::new(codec, cid::Version::V0, &mh))
         }
-    }
-}
-
-/// https://docs.ipfs.io/reference/api/http/#api-v0-resolve
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub struct ResolveResponse {
-    pub path: Path,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cid(pub cid::Cid);
-
-impl<'de> Deserialize<'de> for Cid {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de;
-        use std::fmt;
-        struct CidVisitor;
-        impl<'de> de::Visitor<'de> for CidVisitor {
-            type Value = Cid;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a string that can be converted to a Cid")
-            }
-
-            fn visit_str<E>(self, path_str: &str) -> std::result::Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
-                use cid::ToCid;
-                path_str.to_cid().map(Cid).map_err(de::Error::custom)
-            }
-        }
-        deserializer.deserialize_string(CidVisitor)
-    }
+    })
 }
 
 #[derive(Fail, Debug, Eq, PartialEq)]
@@ -412,69 +307,6 @@ mod test {
         assert_eq!(
             "/ipfs/QmXGuztteR8h7TKDsw61yCrwYzrw8kcfQMfG8dXd3Y2ZkC/spec",
             Path::from_str(&path_string).unwrap().to_string(),
-        );
-    }
-
-    #[test]
-    fn ipfs_result_err_ser_der_ok() {
-        let expect = Result::<bool>::Err(Error {
-            message: "invalid 'ipfs ref' path".to_string(),
-            code: 0,
-            Type: "error".to_string(),
-        });
-
-        assert_eq!(
-            include_str!("./test/ipfs_result_err.json"),
-            serde_json::to_string(&expect).unwrap(),
-        );
-
-        assert_eq!(
-            serde_json::from_str::<'static, Result<bool>>(include_str!(
-                "./test/ipfs_result_err.json"
-            ))
-            .unwrap(),
-            expect,
-        );
-    }
-
-    #[test]
-    fn ipfs_result_ok_add_response_der_ok() {
-        use cid::ToCid;
-        let expect = Result::<AddResponse>::Ok(AddResponse {
-            name: "empty".to_string(),
-            hash: Cid("QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH"
-                .to_cid()
-                .unwrap()),
-            size: "6".to_string(),
-        });
-
-        assert_eq!(
-            serde_json::from_str::<'static, Result<AddResponse>>(include_str!(
-                "./test/ipfs_result_ok_add_response.json"
-            ))
-            .unwrap(),
-            expect,
-        );
-    }
-
-    #[test]
-    fn ipfs_key_list_response_der_ok() {
-        use cid::ToCid;
-        let expect = KeyListResponse {
-            keys: vec![Key {
-                name: "self".to_string(),
-                id: Cid("QmcEiVtvhFAKDqA7ZVSDYwR6AMVoKNwuhTwcX7rdqF5AN5"
-                    .to_cid()
-                    .unwrap()),
-            }],
-        };
-
-        assert_eq!(
-            serde_json::from_str::<'static, KeyListResponse>(include_str!(
-                "./test/ipfs_key_list_response.json"
-            ))
-            .unwrap(),
-            expect,
         );
     }
 }

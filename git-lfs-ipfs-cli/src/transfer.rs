@@ -4,9 +4,8 @@ use actix::prelude::*;
 use futures::{future, prelude::*, stream};
 
 use crate::error::CliError;
-use git_lfs_ipfs_lib::{
-    ipfs,
-    spec::{self, transfer::custom},
+use git_lfs_spec::{
+    transfer::custom,
 };
 
 #[derive(Debug, Clone)]
@@ -126,7 +125,7 @@ impl Handler<Input> for Engine {
     fn handle(&mut self, event: Input, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         match (event.0, &self.init.operation) {
             (custom::Event::Download(download), custom::Operation::Download) => {
-                let cid = ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid).ok();
+                let cid = crate::ipfs::sha256_to_cid(cid::Codec::DagProtobuf, &download.object.oid);
                 if let Some(cid) = cid {
                     let oid = download.object.oid.clone();
                     let mut output_path = std::env::current_dir().unwrap();
@@ -136,7 +135,7 @@ impl Handler<Input> for Engine {
                     Box::new(
                         actix::fut::wrap_stream(
                             ipfs_api::IpfsClient::default()
-                                .block_get(&spec::ipfs::Path::ipfs(cid.clone()).to_string())
+                                .block_get(&crate::ipfs::Path::ipfs(cid.clone()).to_string())
                                 .map_err(CliError::IpfsApiError)
                                 .and_then(move |x| {
                                     output.write_all(&x).map(|_| x.len()).map_err(CliError::Io)

@@ -12,6 +12,8 @@ mod error;
 mod smudge;
 mod transfer;
 
+mod ipfs;
+
 fn main() {
     env_logger::init();
     let app_matches = clap_app!(myapp =>

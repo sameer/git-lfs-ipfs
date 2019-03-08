@@ -2,7 +2,6 @@ use std::io::{self, Read, Write};
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
-use git_lfs_ipfs_lib::spec;
 
 use crate::error::CliError;
 
@@ -32,7 +31,7 @@ impl Actor for Smudge {
                     .map(|mh| cid::Cid::new(cid::Codec::DagProtobuf, cid::Version::V0, &mh))
                     .map(|cid| {
                         ipfs_api::IpfsClient::default()
-                            .cat(&spec::ipfs::Path::ipfs(cid).to_string())
+                            .cat(&crate::ipfs::Path::ipfs(cid).to_string())
                     })
                     .flatten_stream()
                     .map_err(CliError::IpfsApiError),

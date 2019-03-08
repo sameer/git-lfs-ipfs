@@ -1,6 +1,6 @@
 use failure::Fail;
 
-use git_lfs_ipfs_lib::{spec::transfer::custom};
+use git_lfs_spec::transfer::custom;
 
 #[derive(Fail, Debug)]
 pub enum CliError {

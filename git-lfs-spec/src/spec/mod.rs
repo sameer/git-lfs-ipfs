@@ -1,7 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
 
 pub mod batch;
-pub mod ipfs;
 pub mod transfer;
 
 #[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Clone)]

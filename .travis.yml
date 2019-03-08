@@ -15,6 +15,7 @@ addons:
       - kalakris-cmake
 
 rust:
+  - stable
   - beta
   - nightly
 
