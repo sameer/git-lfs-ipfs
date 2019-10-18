@@ -4,9 +4,7 @@ use actix::prelude::*;
 use futures::{future, prelude::*, stream};
 
 use crate::error::CliError;
-use git_lfs_spec::{
-    transfer::custom,
-};
+use git_lfs_spec::transfer::custom;
 
 #[derive(Debug, Clone)]
 struct Input(custom::Event);
@@ -60,10 +58,10 @@ impl StreamHandler<Input, CliError> for Transfer {
                 println!("{{}}");
             }
             (None, event) => {
-                panic!(CliError::UnexpectedEvent(event.0));
+                panic!("{}", CliError::UnexpectedEvent(event.0));
             }
             (Some(_), Input(custom::Event::Init(init))) => {
-                panic!(CliError::UnexpectedEvent(custom::Event::Init(init)));
+                panic!("{}", CliError::UnexpectedEvent(custom::Event::Init(init)));
             }
             (Some(_), Input(custom::Event::Terminate)) => {
                 System::current().stop();
@@ -74,7 +72,7 @@ impl StreamHandler<Input, CliError> for Transfer {
                         Ok(response) => {
                             println!(
                                 "{}",
-                                serde_json::to_string(&response.0s)
+                                serde_json::to_string(&response.0)
                                     .expect("Failed to serialize an event")
                             );
                             actix::fut::ok(())
@@ -136,6 +134,7 @@ impl Handler<Input> for Engine {
                         actix::fut::wrap_stream(
                             ipfs_api::IpfsClient::default()
                                 .block_get(&crate::ipfs::Path::ipfs(cid.clone()).to_string())
+                                .map_err(|err| err.to_string())
                                 .map_err(CliError::IpfsApiError)
                                 .and_then(move |x| {
                                     output.write_all(&x).map(|_| x.len()).map_err(CliError::Io)

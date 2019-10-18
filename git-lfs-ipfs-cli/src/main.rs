@@ -1,11 +1,14 @@
 #[macro_use]
 extern crate clap;
 
+#[macro_use]
+extern crate derive_more;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
-use actix::prelude::*;
+use actix::{prelude::*, System};
 
 mod clean;
 mod error;

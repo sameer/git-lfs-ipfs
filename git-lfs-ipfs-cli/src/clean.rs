@@ -1,7 +1,6 @@
 use std::io::{self, Write};
 
 use actix::prelude::*;
-use futures::prelude::*;
 
 use crate::error::CliError;
 
@@ -20,11 +19,11 @@ impl Actor for Clean {
             actix::fut::wrap_future(
                 ipfs_api::IpfsClient::default()
                     .add(io::stdin())
-                    .map_err(CliError::IpfsApiError)
+                    .map_err(|err| CliError::IpfsApiError(err.to_string()))
                     .map(|add_response| {
                         ipfs_api::IpfsClient::default()
                             .block_get(&add_response.hash)
-                            .map_err(CliError::IpfsApiError)
+                            .map_err(|err| CliError::IpfsApiError(err.to_string()))
                     })
                     .flatten_stream()
                     .fold(io::stdout(), |mut acc, x| {

@@ -5,24 +5,23 @@ authors = ["Sameer Puri <purisame@spuri.io>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "0.7"
-actix = "0.7"
-serde_json = "1.0"
-futures = "0.1.25"
-failure = "0.1"
-env_logger = "0.6"
-bytes = "0.4"
-cid = "0.3" 
-git-lfs-spec = { path = "../git-lfs-spec", version = "0.1" }
-clap = "2.32"
-multihash = "0.8"
-ipfs-api = { version = "0.5.0-alpha2", git = "https://github.com/ferristseng/rust-ipfs-api", features = ["actix"], default-features = false }
-hex = "0.3"
-url = "1.7"
-lazy_static = "1.2"
-serde = "1.0"
-publicsuffix = "1.5"
-path-clean = "0.1"
+actix = "0.8"
+serde_json = "1"
+futures = "0"
+derive_more = "0"
+env_logger = "0"
+bytes = "0"
+cid = "0" 
+git-lfs-spec = { path = "../git-lfs-spec", version = "0" }
+clap = "2"
+multihash = "0"
+ipfs-api = { version = "0.5.2", features = ["actix"], default-features = false }
+hex = "0"
+url = "2"
+lazy_static = "1"
+serde = "1"
+publicsuffix = "1"
+path-clean = "0"
 
 [dev-dependencies]
-pretty_assertions = "0.5"
+pretty_assertions = "0"

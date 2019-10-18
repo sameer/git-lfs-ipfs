@@ -1,9 +1,8 @@
-use failure::Fail;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Display;
-use std::str::FromStr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use url::Url;
 
 pub const EMPTY_FOLDER_HASH: &str = "QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn";
@@ -32,21 +31,21 @@ pub fn sha256_to_cid(codec: cid::Codec, sha256_str: &str) -> Option<cid::Cid> {
     })
 }
 
-#[derive(Fail, Debug, Eq, PartialEq)]
+#[derive(Display, Debug, Eq, PartialEq)]
 pub enum PathParseError {
-    #[fail(display = "unable to parse cid: {}", _0)]
+    #[display(fmt = "unable to parse cid: {}", _0)]
     CidError(cid::Error),
-    #[fail(display = "invalid domain: {}", _0)]
+    #[display(fmt = "invalid domain: {}", _0)]
     DnsLinkDomainInvalid(String),
-    #[fail(display = "errors during UTS#46 processing: {}", _0)]
+    #[display(fmt = "errors during UTS#46 processing: {}", _0)]
     DnsLinkUnicodeError(String),
-    #[fail(display = "unable to parse suffix: {}", _0)]
+    #[display(fmt = "unable to parse suffix: {}", _0)]
     SuffixError(std::string::ParseError),
-    #[fail(display = "suffix is not absolute: {}", _0)]
+    #[display(fmt = "suffix is not absolute: {}", _0)]
     SuffixNotAbsolute(String),
-    #[fail(display = "unexpected prefix: {} (must be /ipfs/ or /ipns/)", _0)]
+    #[display(fmt = "unexpected prefix: {} (must be /ipfs/ or /ipns/)", _0)]
     UnknownPrefix(String),
-    #[fail(display = "expected cid, got dnslink record")]
+    #[display(fmt = "expected cid, got dnslink record")]
     ExpectedCid,
 }
 

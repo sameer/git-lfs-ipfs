@@ -34,6 +34,7 @@ impl Actor for Smudge {
                             .cat(&crate::ipfs::Path::ipfs(cid).to_string())
                     })
                     .flatten_stream()
+                    .map_err(|err| err.to_string())
                     .map_err(CliError::IpfsApiError),
             )
             .and_then(|b: bytes::Bytes, actor: &mut Self, ctx| {
