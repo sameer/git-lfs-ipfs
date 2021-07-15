@@ -12,10 +12,12 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 /// 256 * 1024 bytes
 const CHUNKER_FIXED_BLOCK_SIZE: usize = 256 * 1024;
 
+const BUFFER_SIZE: usize = CHUNKER_FIXED_BLOCK_SIZE / 256;
+
 async fn sha256_hash_of_raw_block(
     mut input: impl AsyncRead + AsyncReadExt + Unpin,
 ) -> Result<Sha2Digest<U32>> {
-    let mut buffer = [0u8; CHUNKER_FIXED_BLOCK_SIZE];
+    let mut buffer = [0u8; BUFFER_SIZE];
     let mut hasher = Sha2_256::default();
     loop {
         let bytes_read = input.read(&mut buffer).await?;
