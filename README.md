@@ -25,6 +25,8 @@ None yet!
 Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
 
 ```
+[lfs]
+	standalonetransferagent = ipfs
 [lfs "customtransfer.ipfs"]
 	path = git-lfs-ipfs-cli
 	args = transfer
