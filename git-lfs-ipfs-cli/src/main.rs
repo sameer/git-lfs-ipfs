@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
                 } else {
                     println!(
                         "{}",
-                        serde_json::to_string(&output_event).expect("Failed to serialize an event")
+                        serde_json::to_string(&output_event)?
                     );
                 }
             }
