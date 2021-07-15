@@ -2,9 +2,9 @@
 
 A [git-lfs](https://git-lfs.github.com/) custom transfer & extension implementation that makes using IPFS for storage easy.
 
-[![Build Status](https://travis-ci.com/sameer/git-lfs-ipfs.svg?branch=master)](https://travis-ci.com/sameer/git-lfs-ipfs)
+[![git-lfs-ipfs](https://github.com/sameer/git-lfs-ipfs/actions/workflows/rust.yml/badge.svg)](https://github.com/sameer/git-lfs-ipfs/actions/workflows/rust.yml)
 
-[![Coverage Status](https://coveralls.io/repos/github/sameer/git-lfs-ipfs/badge.svg?branch=master)](https://coveralls.io/github/sameer/git-lfs-ipfs?branch=master)
+[![codecov](https://codecov.io/gh/sameer/git-lfs-ipfs/branch/master/graph/badge.svg?token=HF0QLJJJU1)](https://codecov.io/gh/sameer/git-lfs-ipfs)
 
 ## Installation
 
