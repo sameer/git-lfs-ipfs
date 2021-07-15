@@ -5,12 +5,17 @@ use ipfs_api::IpfsApi;
 use multihash::{Code, MultihashDigest, Sha2Digest, Sha2_256, StatefulHasher, U32};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-const ONE_KB: usize = 1024;
+/// Verbatim from IPFS cli docs:
+///
+/// > Different chunking strategies will produce different
+/// hashes for the same file. The default is a fixed block size of
+/// 256 * 1024 bytes
+const CHUNKER_FIXED_BLOCK_SIZE: usize = 256 * 1024;
 
 async fn sha256_hash_of_raw_block(
     mut input: impl AsyncRead + AsyncReadExt + Unpin,
 ) -> Result<Sha2Digest<U32>> {
-    let mut buffer = [0u8; ONE_KB];
+    let mut buffer = [0u8; CHUNKER_FIXED_BLOCK_SIZE];
     let mut hasher = Sha2_256::default();
     loop {
         let bytes_read = input.read(&mut buffer).await?;
