@@ -1,27 +1,25 @@
 [package]
 name = "git-lfs-ipfs-cli"
 version = "0.1.0"
-authors = ["Sameer Puri <purisame@spuri.io>"]
+authors = ["Sameer Puri <crates@purisa.me>"]
 edition = "2018"
 
 [dependencies]
-actix = "0.8"
+anyhow = "1"
 serde_json = "1"
-futures = "0"
-derive_more = "0"
-env_logger = "0"
-bytes = "0"
 cid = "0" 
 git-lfs-spec = { path = "../git-lfs-spec", version = "0" }
-clap = "2"
-multihash = "0"
-ipfs-api = { version = "0.5.2", features = ["actix"], default-features = false }
+structopt = "0.3"
+multihash = { version = "0.14", features = ["sha2"], default-features = false }
+ipfs-api = { version = "0.12", features = ["with-hyper-rustls"], default-features = false, git = "https://github.com/ferristseng/rust-ipfs-api.git" }
 hex = "0"
-url = "2"
-lazy_static = "1"
 serde = "1"
-publicsuffix = "1"
-path-clean = "0"
+futures = "0.3"
+tokio = { version = "1", features = ["io-util", "macros", "io-std", "rt-multi-thread", "rt"], default-features = false }
+async-stream = "0.3"
+futures-util = "0.3"
+hyper = "0.14"
+hyper-rustls = "0"
 
 [dev-dependencies]
 pretty_assertions = "0"

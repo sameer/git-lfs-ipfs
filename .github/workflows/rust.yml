@@ -1,0 +1,50 @@
+name: git-lfs-ipfs
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          profile: minimal
+          components: llvm-tools-preview
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: grcov
+          version: 0.8.0
+          use-tool-cache: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+        env:
+          RUSTFLAGS: '-Zinstrument-coverage'
+          RUSTDOCFLAGS: '-Zinstrument-coverage'
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --no-fail-fast
+        env:
+          RUSTFLAGS: '-Zinstrument-coverage'
+          RUSTDOCFLAGS: '-Zinstrument-coverage'
+          LLVM_PROFILE_FILE: 'codecov-instrumentation-%p-%m.profraw'
+      - name: grcov
+        run: grcov . -s . --binary-path ./target/debug/ -t lcov --branch -o lcov.info
+      - uses: codecov/codecov-action@v1
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}

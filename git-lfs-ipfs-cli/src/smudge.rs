@@ -1,53 +1,74 @@
-use std::io::{self, Read, Write};
+use anyhow::Result;
+use cid::Cid;
+use futures::stream::StreamExt;
+use ipfs_api::IpfsApi;
+use multihash::{Code, MultihashDigest, Sha2Digest, Sha2_256, StatefulHasher, U32};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use actix::prelude::*;
-use futures::{future, prelude::*};
+const ONE_KB: usize = 1024;
 
-use crate::error::CliError;
-
-pub struct Smudge {
-    // TODO: Does this actually need to be buffered, even if files are large?
-    stdout: io::BufWriter<io::Stdout>,
-}
-
-impl Default for Smudge {
-    fn default() -> Self {
-        Self {
-            stdout: io::BufWriter::new(io::stdout()),
+async fn sha256_hash_of_raw_block(
+    mut input: impl AsyncRead + AsyncReadExt + Unpin,
+) -> Result<Sha2Digest<U32>> {
+    let mut buffer = [0u8; ONE_KB];
+    let mut hasher = Sha2_256::default();
+    loop {
+        let bytes_read = input.read(&mut buffer).await?;
+        if bytes_read == 0 {
+            break;
         }
+        hasher.update(&buffer[..bytes_read]);
     }
+    Ok(hasher.finalize())
 }
 
-impl Actor for Smudge {
-    type Context = Context<Self>;
-    fn started(&mut self, ctx: &mut <Smudge as Actor>::Context) {
-        let mut raw_object = Vec::with_capacity(8192);
-        io::stdin()
-            .read_to_end(&mut raw_object)
-            .expect("could not read raw object from stdin");
-        ctx.wait(
-            actix::fut::wrap_stream(
-                future::ok(multihash::encode(multihash::Hash::SHA2256, &raw_object).unwrap())
-                    .map(|mh| cid::Cid::new(cid::Codec::DagProtobuf, cid::Version::V0, &mh))
-                    .map(|cid| {
-                        ipfs_api::IpfsClient::default()
-                            .cat(&crate::ipfs::Path::ipfs(cid).to_string())
-                    })
-                    .flatten_stream()
-                    .map_err(|err| err.to_string())
-                    .map_err(CliError::IpfsApiError),
-            )
-            .and_then(|b: bytes::Bytes, actor: &mut Self, ctx| {
-                actix::fut::result(actor.stdout.write_all(&b).map_err(CliError::Io))
-            })
-            .finish()
-            .then(|x, _, _| match x {
-                Ok(_) => {
-                    System::current().stop();
-                    actix::fut::ok(())
-                }
-                Err(err) => panic!("{:?}", err),
-            }),
+async fn cid_of_raw_block(input: impl AsyncRead + AsyncReadExt + Unpin) -> Result<Cid> {
+    let sha256_hash = sha256_hash_of_raw_block(input).await?;
+    let hash = Code::multihash_from_digest(&sha256_hash);
+    Ok(Cid::new_v0(hash.into()).unwrap())
+}
+
+/// Convert a file's raw IPFS block back into the file itself
+///
+/// Recall that git-lfs is actually storing the QmHash but it
+/// wants to get the file's original SHA-256 back.
+///
+/// <https://github.com/git-lfs/git-lfs/blob/main/docs/extensions.md#smudge>
+pub async fn smudge<E: 'static + Send + Sync + std::error::Error>(
+    client: impl IpfsApi<Error = E>,
+    input: impl AsyncRead + AsyncReadExt + Unpin,
+    mut output: impl AsyncWrite + AsyncWriteExt + Unpin,
+) -> Result<()> {
+    let cid = cid_of_raw_block(input).await?;
+    let mut stream = client.cat(&format!("/ipfs/{}", cid));
+    while let Some(bytes) = stream.next().await.transpose()? {
+        output.write_all(&bytes).await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    const RAW_BLOCK: &[u8] = include_bytes!("../test/hello_world_raw_block");
+    const SHA256_HASH: &str = "f852c7fa62f971817f54d8a80dcd63fcf7098b3cbde9ae8ec1ee449013ec5db0";
+    const MULTI_HASH: &str = "Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD";
+
+    #[tokio::test]
+    async fn sha256_hash_of_raw_block_returns_expected_hash() {
+        assert_eq!(
+            sha256_hash_of_raw_block(RAW_BLOCK).await.unwrap().as_ref(),
+            hex::decode(SHA256_HASH).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn cid_of_raw_block_returns_expected_cid() {
+        assert_eq!(
+            cid_of_raw_block(RAW_BLOCK).await.unwrap().to_string(),
+            MULTI_HASH
         );
     }
 }

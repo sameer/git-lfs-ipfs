@@ -1,58 +1,57 @@
-#[macro_use]
-extern crate clap;
+use anyhow::Result;
+use futures::StreamExt;
+use git_lfs_spec::transfer::custom::Event;
+use std::path::PathBuf;
+use structopt::StructOpt;
+use tokio::io::{stdin, stdout, BufReader};
 
-#[macro_use]
-extern crate derive_more;
-
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-
-use actix::{prelude::*, System};
+use crate::{clean::clean, smudge::smudge};
 
 mod clean;
-mod error;
 mod smudge;
 mod transfer;
 
 mod ipfs;
 
-fn main() {
-    env_logger::init();
-    let app_matches = clap_app!(myapp =>
-        (version: crate_version!())
-        (author: crate_authors!())
-        (about: crate_description!())
-        (@subcommand smudge =>
-            (about: "git-lfs smudge filter extension for ipfs")
-            (@arg filename: +required "name of the file")
-        )
-        (@subcommand clean =>
-            (about: "git-lfs clean filter extension for ipfs")
-            (@arg filename: +required "name of the file")
-        )
-        (@subcommand transfer =>
-            (about: "git-lfs custom transfer for ipfs")
-        )
-    )
-    .get_matches();
+#[derive(Debug, StructOpt)]
+#[structopt(author, about)]
+enum GitLfsIpfs {
+    /// git-lfs smudge filter extension for IPFS
+    Smudge {
+        /// Name of the file
+        filename: PathBuf,
+    },
+    /// git-lfs clean filter extension for IPFS
+    Clean {
+        /// Name of the file
+        filename: PathBuf,
+    },
+    /// git-lfs custom transfer for IPFS
+    Transfer,
+}
 
-    let sys = System::new("git-lfs-ipfs");
-
-    match app_matches.subcommand() {
-        ("smudge", _) => {
-            smudge::Smudge::default().start();
+#[tokio::main]
+async fn main() -> Result<()> {
+    let client = crate::ipfs::client();
+    match GitLfsIpfs::from_args() {
+        GitLfsIpfs::Smudge { filename: _ } => smudge(client, stdin(), stdout()).await,
+        GitLfsIpfs::Clean { filename: _ } => clean(client, std::io::stdin(), stdout()).await,
+        GitLfsIpfs::Transfer => {
+            let buffered_stdin = BufReader::new(stdin());
+            let input_event_stream = transfer::read_events(buffered_stdin);
+            let output_event_stream = transfer::transfer(client, input_event_stream);
+            futures_util::pin_mut!(output_event_stream);
+            while let Some(output_event) = output_event_stream.next().await.transpose()? {
+                if Event::AcknowledgeInit == output_event {
+                    println!("{{ }}");
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&output_event).expect("Failed to serialize an event")
+                    );
+                }
+            }
+            Ok(())
         }
-        ("clean", _) => {
-            clean::Clean::default().start();
-        }
-        ("transfer", _) => {
-            transfer::Transfer::default().start();
-        }
-        _ => {
-            println!("Unknown command");
-            return;
-        }
-    };
-    sys.run();
+    }
 }
