@@ -40,6 +40,11 @@ mod tests {
 
     #[test]
     fn sha256_to_cid_returns_err_for_string_without_32_bytes() {
+        assert!(sha256_to_cid("abcd").is_err());
+    }
+
+    #[test]
+    fn sha256_to_cid_returns_err_for_non_hex_string() {
         assert!(sha256_to_cid("foo").is_err());
     }
 }
