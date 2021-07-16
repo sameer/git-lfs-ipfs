@@ -13,9 +13,7 @@ pub fn sha256_to_cid(sha256_str: &str) -> Result<cid::Cid> {
         ))
     } else {
         let mut digest = Sha2Digest::<U32>::default();
-        for i in 0..32 {
-            digest.as_mut()[i] = raw_digest[i];
-        }
+        digest.as_mut().copy_from_slice(&raw_digest);
         Ok(cid::Cid::new_v0(Code::multihash_from_digest(&digest))?)
     }
 }
