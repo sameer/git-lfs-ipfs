@@ -17,16 +17,22 @@ mod ipfs;
 #[structopt(author, about)]
 enum GitLfsIpfs {
     /// git-lfs smudge filter extension for IPFS
+    ///
+    /// https://github.com/git-lfs/git-lfs/blob/main/docs/extensions.md#smudge
     Smudge {
         /// Name of the file
         filename: PathBuf,
     },
     /// git-lfs clean filter extension for IPFS
+    ///
+    /// <https://github.com/git-lfs/git-lfs/blob/main/docs/extensions.md#clean>
     Clean {
         /// Name of the file
         filename: PathBuf,
     },
     /// git-lfs custom transfer for IPFS
+    ///
+    /// <https://github.com/git-lfs/git-lfs/blob/main/docs/custom-transfers.md>
     Transfer,
 }
 
@@ -45,10 +51,7 @@ async fn main() -> Result<()> {
                 if Event::AcknowledgeInit == output_event {
                     println!("{{ }}");
                 } else {
-                    println!(
-                        "{}",
-                        serde_json::to_string(&output_event)?
-                    );
+                    println!("{}", serde_json::to_string(&output_event)?);
                 }
             }
             Ok(())
