@@ -26,23 +26,27 @@ jobs:
           ipfs init --profile server
           ipfs daemon&
       - uses: actions-rs/toolchain@v1
+        name: Install nightly Rust toolchain with llvm-tools-preview
         with:
           toolchain: nightly
           override: true
           profile: minimal
           components: llvm-tools-preview
       - uses: actions-rs/install@v0.1
+        name: Install grcov
         with:
           crate: grcov
           version: 0.8.0
           use-tool-cache: true
       - uses: actions-rs/cargo@v1
+        name: Build crates with coverage instrumentation
         with:
           command: build
         env:
           RUSTFLAGS: '-Zinstrument-coverage'
           RUSTDOCFLAGS: '-Zinstrument-coverage'
       - uses: actions-rs/cargo@v1
+        name: Run tests
         with:
           command: test
           args: --all-features --no-fail-fast -- --include-ignored
