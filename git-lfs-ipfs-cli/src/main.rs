@@ -45,7 +45,9 @@ async fn main() -> Result<()> {
         GitLfsIpfs::Transfer => {
             let buffered_stdin = BufReader::new(stdin());
             let input_event_stream = transfer::read_events(buffered_stdin);
-            let output_event_stream = transfer::transfer(client, input_event_stream);
+            let download_folder = std::env::current_dir()?;
+            let output_event_stream =
+                transfer::transfer(client, input_event_stream, download_folder);
             futures_util::pin_mut!(output_event_stream);
             while let Some(output_event) = output_event_stream.next().await.transpose()? {
                 if Event::AcknowledgeInit == output_event {

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use futures::{Stream, StreamExt};
 use ipfs_api::IpfsApi;
-use std::io::Write;
+use std::{io::Write, path::Path};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 use git_lfs_spec::transfer::custom::{self, Complete, Error, Event, Operation, Progress};
@@ -23,6 +23,7 @@ const INTERNAL_SERVER_ERROR: i32 = 500;
 pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
     client: impl IpfsApi<Error = E>,
     input_event_stream: impl Stream<Item = Result<Event>>,
+    download_folder: impl AsRef<Path>,
 ) -> impl Stream<Item = Result<Event>> {
     let mut init_opt = None;
     async_stream::stream! {
@@ -49,8 +50,7 @@ pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
                             let cid_result = crate::ipfs::sha256_to_cid(&download.object.oid);
                             match cid_result {
                                 Ok(cid) => {
-                                    let mut output_path = std::env::current_dir()?;
-                                    output_path.push(&download.object.oid);
+                                    let output_path = download_folder.as_ref().join(&download.object.oid);
                                     let mut output = std::fs::File::create(&output_path)?;
 
                                     let mut stream =
@@ -148,7 +148,6 @@ mod tests {
     #[ignore]
     async fn transfer_handles_events_as_expected_for_download() {
         let temp_dir = tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
         let expected_output_path = temp_dir.path().join(&OID);
 
@@ -192,6 +191,7 @@ mod tests {
         let output_stream = transfer(
             client,
             futures::stream::iter(input_events.iter().cloned().map(anyhow::Result::Ok)),
+            temp_dir.path(),
         );
         futures_util::pin_mut!(output_stream);
         let expected_output_stream = futures::stream::iter(expected_output_events.iter().cloned());
@@ -250,6 +250,7 @@ mod tests {
         let output_stream = transfer(
             client,
             futures::stream::iter(input_events.iter().cloned().map(anyhow::Result::Ok)),
+            temp_dir.path(),
         );
         futures_util::pin_mut!(output_stream);
         let expected_output_stream = futures::stream::iter(expected_output_events.iter().cloned());
