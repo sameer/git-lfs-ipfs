@@ -22,6 +22,8 @@ None yet!
 
 ### Configuration
 
+If you haven't already, do `git lfs install` to set up Git LFS on your computer.
+
 Add the custom transfer and extensions for IPFS to your `~/.gitconfig`:
 
 ```
