@@ -20,8 +20,7 @@ jobs:
           fetch-depth: 0
       - name: Install IFPS
         run: |
-          sudo apt-get update
-          sudo apt-get install ipfs
+          sudo snap install ipfs
       - name: Configure and start IPFS daemon
         run: |
           ipfs init --profile server
