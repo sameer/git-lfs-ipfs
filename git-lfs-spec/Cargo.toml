@@ -3,6 +3,14 @@ name = "git-lfs-spec"
 version = "0.1.0"
 authors = ["Sameer Puri <crates@purisa.me>"]
 edition = "2018"
+description = "Rust types for Git LFS"
+readme = "../README.md"
+license = "MIT OR Apache-2.0"
+
+[badges]
+is-it-maintained-issue-resolution = { repository = "sameer/git-lfs-ipfs" }
+is-it-maintained-open-issues = { repository = "sameer/git-lfs-ipfs" }
+maintenance = { status = "passively-maintained" }
 
 [dependencies]
 serde = "1"

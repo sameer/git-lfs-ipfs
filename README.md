@@ -1,6 +1,6 @@
 # git-lfs-ipfs
 
-A [git-lfs](https://git-lfs.github.com/) custom transfer & extension implementation that makes using IPFS for storage easy.
+A [git-lfs](https://git-lfs.github.com/) custom transfer & extension that makes it easy to store large files with IPFS.
 
 [![git-lfs-ipfs](https://github.com/sameer/git-lfs-ipfs/actions/workflows/rust.yml/badge.svg)](https://github.com/sameer/git-lfs-ipfs/actions/workflows/rust.yml)
 
