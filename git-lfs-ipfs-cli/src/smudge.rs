@@ -56,6 +56,10 @@ pub async fn smudge<E: 'static + Send + Sync + std::error::Error>(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use crate::ipfs::client;
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -77,5 +81,14 @@ mod tests {
             cid_of_raw_block(RAW_BLOCK).await.unwrap().to_string(),
             MULTI_HASH
         );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn smudge_converts_raw_block_into_file_contents() {
+        let client = client();
+        let mut cursor = Cursor::new(vec![]);
+        smudge(client, RAW_BLOCK, &mut cursor).await.unwrap();
+        assert_eq!(String::from_utf8_lossy(&cursor.into_inner()), "hello world");
     }
 }

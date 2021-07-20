@@ -49,7 +49,6 @@ pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
                             let cid_result = crate::ipfs::sha256_to_cid(&download.object.oid);
                             match cid_result {
                                 Ok(cid) => {
-                                    let oid = download.object.oid.clone();
                                     let mut output_path = std::env::current_dir()?;
                                     output_path.push(&download.object.oid);
                                     let mut output = std::fs::File::create(&output_path)?;
@@ -63,7 +62,7 @@ pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
                                         bytes_so_far += bytes.len() as u64;
                                             yield Ok(Event::Progress(
                                                 Progress {
-                                                    oid: oid.clone(),
+                                                    oid: download.object.oid.clone(),
                                                     bytes_so_far,
                                                     bytes_since_last: bytes.len() as u64,
                                                 }
@@ -96,7 +95,7 @@ pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
                         // TODO: just check the sha256 hash with a /api/v0/block/get
                         (Event::Upload(upload), Operation::Upload) => { yield Ok(Event::Complete(
                                 Complete {
-                                    oid: upload.object.oid,
+                                    oid: upload.object.oid.clone(),
                                     result: None,
                                 }
                                 .into(),
@@ -112,12 +111,28 @@ pub fn transfer<E: 'static + Send + Sync + std::error::Error>(
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::File, io::Read};
+
     use super::*;
-    use git_lfs_spec::transfer::custom::{Event, Init};
+    use crate::ipfs::client;
+    use git_lfs_spec::{
+        transfer::custom::{Download, Event, Init, Result},
+        Object,
+    };
     use pretty_assertions::assert_eq;
+
+    const FILE: &[u8] = b"hello world";
+    const OID: &str = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
+    const SIZE: u64 = FILE.len() as u64;
 
     #[tokio::test]
     async fn read_events_parses_event_successfully() {
+        let init = Event::Init(Init {
+            operation: Operation::Download,
+            remote: "origin".to_string(),
+            concurrent: true,
+            concurrenttransfers: Some(3),
+        });
         let input: &[u8] = br#"{"event":"init","operation":"download","remote":"origin","concurrent":true,"concurrenttransfers":3}"#;
         let stream = read_events(input);
         futures::pin_mut!(stream);
@@ -125,14 +140,79 @@ mod tests {
         while let Some(output) = stream.next().await {
             events.push(output.unwrap());
         }
-        assert_eq!(
-            events,
-            &[Event::Init(Init {
+        assert_eq!(events, &[init]);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn transfer_handles_events_as_expected_for_download() {
+        let client = client();
+        let input_events = [
+            Event::Init(Init {
                 operation: Operation::Download,
                 remote: "origin".to_string(),
                 concurrent: true,
                 concurrenttransfers: Some(3),
-            })]
+            }),
+            Event::Download(
+                Download {
+                    object: Object {
+                        oid: OID.to_string(),
+                        size: SIZE,
+                    },
+                }
+                .into(),
+            ),
+            Event::Terminate,
+        ];
+        let expected_output_events = [
+            Event::AcknowledgeInit,
+            Event::Progress(
+                Progress {
+                    oid: OID.to_string(),
+                    bytes_so_far: SIZE,
+                    bytes_since_last: SIZE,
+                }
+                .into(),
+            ),
+            Event::Complete(
+                Complete {
+                    oid: OID.to_string(),
+                    result: Some(Result::Path({
+                        let mut current_dir = std::env::current_dir().unwrap();
+                        current_dir.push(&OID);
+                        current_dir
+                    })),
+                }
+                .into(),
+            ),
+        ];
+        let output_stream = transfer(
+            client,
+            futures::stream::iter(input_events.iter().cloned().map(anyhow::Result::Ok)),
         );
+        futures_util::pin_mut!(output_stream);
+        let expected_output_stream = futures::stream::iter(expected_output_events.iter().cloned());
+        let mut actual_and_expected_output_stream = output_stream.zip(expected_output_stream);
+        while let Some((actual, expected)) = actual_and_expected_output_stream.next().await {
+            assert_eq!(actual.unwrap(), expected);
+        }
+
+        let mut actual_file = Vec::with_capacity(FILE.len());
+
+        let filepath = {
+            let mut current_dir = std::env::current_dir().unwrap();
+            current_dir.push(&OID);
+            current_dir
+        };
+
+        File::open(&filepath)
+            .unwrap()
+            .read_to_end(&mut actual_file)
+            .unwrap();
+
+        std::fs::remove_file(&filepath).unwrap();
+
+        assert_eq!(actual_file, FILE)
     }
 }

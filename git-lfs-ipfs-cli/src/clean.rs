@@ -26,3 +26,22 @@ pub async fn clean<E: 'static + Send + Sync + std::error::Error>(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ipfs::client;
+    use std::io::Cursor;
+
+    const FILE: &[u8] = b"hello world";
+    const RAW_BLOCK: &[u8] = include_bytes!("../test/hello_world_raw_block");
+
+    #[tokio::test]
+    #[ignore]
+    async fn clean_converts_file_into_raw_root_block() {
+        let client = client();
+        let mut cursor = Cursor::new(vec![]);
+        clean(client, FILE, &mut cursor).await.unwrap();
+        assert_eq!(&cursor.into_inner(), RAW_BLOCK);
+    }
+}
