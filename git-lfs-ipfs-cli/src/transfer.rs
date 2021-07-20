@@ -116,10 +116,11 @@ mod tests {
     use super::*;
     use crate::ipfs::client;
     use git_lfs_spec::{
-        transfer::custom::{Download, Event, Init, Result},
+        transfer::custom::{Download, Event, Init, Result, Upload},
         Object,
     };
     use pretty_assertions::assert_eq;
+    use tempfile::tempdir;
 
     const FILE: &[u8] = b"hello world";
     const OID: &str = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
@@ -146,6 +147,11 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn transfer_handles_events_as_expected_for_download() {
+        let temp_dir = tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let expected_output_path = temp_dir.path().join(&OID);
+
         let client = client();
         let input_events = [
             Event::Init(Init {
@@ -178,11 +184,7 @@ mod tests {
             Event::Complete(
                 Complete {
                     oid: OID.to_string(),
-                    result: Some(Result::Path({
-                        let mut current_dir = std::env::current_dir().unwrap();
-                        current_dir.push(&OID);
-                        current_dir
-                    })),
+                    result: Some(Result::Path(expected_output_path.clone())),
                 }
                 .into(),
             ),
@@ -200,19 +202,62 @@ mod tests {
 
         let mut actual_file = Vec::with_capacity(FILE.len());
 
-        let filepath = {
-            let mut current_dir = std::env::current_dir().unwrap();
-            current_dir.push(&OID);
-            current_dir
-        };
-
-        File::open(&filepath)
+        File::open(&expected_output_path)
             .unwrap()
             .read_to_end(&mut actual_file)
             .unwrap();
 
-        std::fs::remove_file(&filepath).unwrap();
-
         assert_eq!(actual_file, FILE)
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn transfer_handles_events_as_expected_for_upload() {
+        let temp_dir = tempdir().unwrap();
+        let temp_file = temp_dir.path().join(OID);
+        std::fs::File::create(&temp_file).unwrap();
+
+        let client = client();
+        let input_events = [
+            Event::Init(Init {
+                operation: Operation::Upload,
+                remote: "origin".to_string(),
+                concurrent: true,
+                concurrenttransfers: Some(3),
+            }),
+            Event::Upload(
+                Upload {
+                    object: Object {
+                        oid: OID.to_string(),
+                        size: SIZE,
+                    },
+                    path: temp_file.clone(),
+                }
+                .into(),
+            ),
+            Event::Terminate,
+        ];
+        let expected_output_events = [
+            Event::AcknowledgeInit,
+            Event::Complete(
+                Complete {
+                    oid: OID.to_string(),
+                    result: None,
+                }
+                .into(),
+            ),
+        ];
+        let output_stream = transfer(
+            client,
+            futures::stream::iter(input_events.iter().cloned().map(anyhow::Result::Ok)),
+        );
+        futures_util::pin_mut!(output_stream);
+        let expected_output_stream = futures::stream::iter(expected_output_events.iter().cloned());
+        let mut actual_and_expected_output_stream = output_stream.zip(expected_output_stream);
+        while let Some((actual, expected)) = actual_and_expected_output_stream.next().await {
+            assert_eq!(actual.unwrap(), expected);
+        }
+
+        std::fs::remove_file(temp_file).unwrap();
     }
 }
