@@ -1,7 +1,7 @@
 use anyhow::Result;
 use hyper::client::HttpConnector;
-use ipfs_api::IpfsClient;
-use multihash::{Code, MultihashDigest, Sha2Digest, U32};
+use ipfs_api_backend_hyper::IpfsClient;
+use multihash::{Code, MultihashDigest};
 
 /// Assuming that the sha256 hash is for a Qmhash
 pub fn sha256_to_cid(sha256_str: &str) -> Result<cid::Cid> {
@@ -12,9 +12,7 @@ pub fn sha256_to_cid(sha256_str: &str) -> Result<cid::Cid> {
             raw_digest.len()
         ))
     } else {
-        let mut digest = Sha2Digest::<U32>::default();
-        digest.as_mut().copy_from_slice(&raw_digest);
-        Ok(cid::Cid::new_v0(Code::multihash_from_digest(&digest))?)
+        Ok(cid::Cid::new_v0(Code::Sha2_256.wrap(&raw_digest)?)?)
     }
 }
 

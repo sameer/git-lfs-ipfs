@@ -1,8 +1,8 @@
 use anyhow::Result;
 use cid::Cid;
 use futures::stream::StreamExt;
-use ipfs_api::IpfsApi;
-use multihash::{Code, MultihashDigest, Sha2Digest, Sha2_256, StatefulHasher, U32};
+use ipfs_api_backend_hyper::IpfsApi;
+use multihash::{Code, Hasher, Multihash, MultihashDigest, Sha2_256};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// Verbatim from IPFS cli docs:
@@ -14,9 +14,7 @@ const CHUNKER_FIXED_BLOCK_SIZE: usize = 256 * 1024;
 
 const BUFFER_SIZE: usize = CHUNKER_FIXED_BLOCK_SIZE / 256;
 
-async fn sha256_hash_of_raw_block(
-    mut input: impl AsyncRead + AsyncReadExt + Unpin,
-) -> Result<Sha2Digest<U32>> {
+async fn sha256_hash_of_raw_block(mut input: impl AsyncRead + Unpin) -> Result<Multihash> {
     let mut buffer = [0u8; BUFFER_SIZE];
     let mut hasher = Sha2_256::default();
     loop {
@@ -26,13 +24,12 @@ async fn sha256_hash_of_raw_block(
         }
         hasher.update(&buffer[..bytes_read]);
     }
-    Ok(hasher.finalize())
+    Ok(Code::Sha2_256.wrap(hasher.finalize())?)
 }
 
-async fn cid_of_raw_block(input: impl AsyncRead + AsyncReadExt + Unpin) -> Result<Cid> {
+async fn cid_of_raw_block(input: impl AsyncRead + Unpin) -> Result<Cid> {
     let sha256_hash = sha256_hash_of_raw_block(input).await?;
-    let hash = Code::multihash_from_digest(&sha256_hash);
-    Ok(Cid::new_v0(hash.into()).unwrap())
+    Ok(Cid::new_v0(sha256_hash).unwrap())
 }
 
 /// Convert a file's raw IPFS block back into the file itself
@@ -43,8 +40,8 @@ async fn cid_of_raw_block(input: impl AsyncRead + AsyncReadExt + Unpin) -> Resul
 /// <https://github.com/git-lfs/git-lfs/blob/main/docs/extensions.md#smudge>
 pub async fn smudge<E: 'static + Send + Sync + std::error::Error>(
     client: impl IpfsApi<Error = E>,
-    input: impl AsyncRead + AsyncReadExt + Unpin,
-    mut output: impl AsyncWrite + AsyncWriteExt + Unpin,
+    input: impl AsyncRead + Unpin,
+    mut output: impl AsyncWrite + Unpin,
 ) -> Result<()> {
     let cid = cid_of_raw_block(input).await?;
     let mut stream = client.cat(&format!("/ipfs/{}", cid));
@@ -70,7 +67,7 @@ mod tests {
     #[tokio::test]
     async fn sha256_hash_of_raw_block_returns_expected_hash() {
         assert_eq!(
-            sha256_hash_of_raw_block(RAW_BLOCK).await.unwrap().as_ref(),
+            sha256_hash_of_raw_block(RAW_BLOCK).await.unwrap().digest(),
             hex::decode(SHA256_HASH).unwrap()
         );
     }

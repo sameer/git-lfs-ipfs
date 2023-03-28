@@ -1,8 +1,8 @@
 [package]
 name = "git-lfs-ipfs-cli"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Sameer Puri <crates@purisa.me>"]
-edition = "2018"
+edition = "2021"
 description = "A git-lfs custom transfer & extension that makes it easy to store large files with IPFS"
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
@@ -18,8 +18,8 @@ serde_json = "1"
 cid = { version = "0", default-features = false, features = ["std"] }
 git-lfs-spec = { path = "../git-lfs-spec", version = "0" }
 structopt = "0.3"
-multihash = { version = "0.14", features = ["sha2", "multihash-impl"], default-features = false }
-ipfs-api = { version = "0.12", features = ["with-hyper-rustls"], default-features = false, git = "https://github.com/ferristseng/rust-ipfs-api.git" }
+multihash = { version = "0.18", features = ["sha2", "multihash-impl"], default-features = false }
+ipfs-api-backend-hyper = { version = "0.6", features = ["with-hyper-rustls"] }
 hex = "0"
 serde = "1"
 futures = "0.3"

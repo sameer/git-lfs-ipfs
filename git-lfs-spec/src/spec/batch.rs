@@ -33,9 +33,10 @@ pub enum Operation {
 }
 
 /// https://github.com/git-lfs/git-lfs/blob/master/docs/api/basic-transfers.md#basic-transfer-api
-#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Transfer {
+    #[default]
     Basic,
     Custom,
 }
@@ -43,12 +44,6 @@ pub enum Transfer {
 impl Transfer {
     fn default_vec() -> Vec<Self> {
         vec![Transfer::Basic]
-    }
-}
-
-impl Default for Transfer {
-    fn default() -> Self {
-        Transfer::Basic
     }
 }
 
@@ -67,7 +62,7 @@ pub enum ObjectResponse {
         object: Object,
         #[serde(skip_serializing_if = "Option::is_none")]
         authenticated: Option<bool>,
-        actions: Actions,
+        actions: Box<Actions>,
     },
     Error {
         #[serde(flatten)]
@@ -81,7 +76,7 @@ impl ObjectResponse {
         ObjectResponse::Success {
             object,
             authenticated: None,
-            actions,
+            actions: Box::new(actions),
         }
     }
 
@@ -223,7 +218,7 @@ mod test {
                         size: 123,
                     },
                     authenticated: Some(true),
-                    actions: Actions::Download {
+                    actions: Box::new(Actions::Download {
                         download: Action {
                             href: Url::parse("https://some-download.com").unwrap(),
                             header: Some(
@@ -237,7 +232,7 @@ mod test {
                                 .unwrap()
                                 .into()
                         }
-                    }
+                    })
                 }],
             })
             .unwrap(),

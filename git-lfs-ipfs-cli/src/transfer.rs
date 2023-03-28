@@ -1,14 +1,12 @@
 use anyhow::{Context, Result};
 use futures::{Stream, StreamExt};
-use ipfs_api::IpfsApi;
+use ipfs_api_backend_hyper::IpfsApi;
 use std::{io::Write, path::Path};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 use git_lfs_spec::transfer::custom::{self, Complete, Error, Event, Operation, Progress};
 
-pub fn read_events(
-    input: impl AsyncBufRead + AsyncBufReadExt + Unpin,
-) -> impl Stream<Item = Result<Event>> {
+pub fn read_events(input: impl AsyncBufRead + Unpin) -> impl Stream<Item = Result<Event>> {
     async_stream::stream! {
         let mut lines = input.lines();
         while let Some(line) = lines.next_line().await? {
@@ -149,7 +147,7 @@ mod tests {
     async fn transfer_handles_events_as_expected_for_download() {
         let temp_dir = tempdir().unwrap();
 
-        let expected_output_path = temp_dir.path().join(&OID);
+        let expected_output_path = temp_dir.path().join(OID);
 
         let client = client();
         let input_events = [
